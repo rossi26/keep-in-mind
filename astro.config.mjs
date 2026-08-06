@@ -5,5 +5,5 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   integrations: [svelte(), tailwind()],
   output: 'static',
-  site: 'https://keep-in-mind.example.com',
+  site: 'https://keep-in-mind.netlify.app',
 });
