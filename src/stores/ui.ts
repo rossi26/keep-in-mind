@@ -1,4 +1,5 @@
 import { atom, computed } from 'nanostores';
+import { persistentAtom } from '@nanostores/persistent';
 import type { View, TaskSheetMode, ToastMessage, Task } from '../types';
 
 // Current view (navigation)
@@ -22,6 +23,28 @@ export const darkMode = atom<boolean>(
         localStorage.getItem('dark-mode') === 'true'
     : false
 );
+
+// Settings modal visibility
+export const settingsOpen = atom<boolean>(false);
+
+// Global default boomerang days (used as the default when creating a task)
+export const defaultBoomerangDays = persistentAtom<number>('kmm-boomerang-default', 3, {
+  encode: (v) => String(v),
+  decode: (v) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : 3;
+  },
+});
+
+/** Open the settings modal */
+export function openSettings(): void {
+  settingsOpen.set(true);
+}
+
+/** Close the settings modal */
+export function closeSettings(): void {
+  settingsOpen.set(false);
+}
 
 darkMode.subscribe((isDark) => {
   if (typeof document === 'undefined') return;

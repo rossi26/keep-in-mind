@@ -314,6 +314,16 @@ export function runBoomerangCheck(): number {
   return rescheduled;
 }
 
+/** Delete all tasks with status "done" (destructive, used from Settings) */
+export function clearCompletedTasks(): number {
+  const current = tasks.get();
+  const completed = current.filter((t) => t.status === 'done');
+  if (completed.length === 0) return 0;
+
+  tasks.set(current.filter((t) => t.status !== 'done'));
+  return completed.length;
+}
+
 /** Get count of tasks in a list */
 export function getTaskCountByList(listId: string): number {
   return tasks.get().filter((t) => t.listId === listId).length;

@@ -50,6 +50,23 @@
   let swipeAction = $state<'none' | 'left' | 'right' | 'confirmed-left' | 'confirmed-right'>('none');
   let showSubtasks = $state(false);
 
+  // Haptic feedback simulation: a brief CSS scale pulse when the task
+  // transitions from not-done → done (checkbox tap or swipe-right).
+  let isPulsing = $state(false);
+  let prevDone = false;
+
+  $effect(() => {
+    const done = isOccurrenceDone;
+    if (done && !prevDone) {
+      isPulsing = true;
+      const t = setTimeout(() => {
+        isPulsing = false;
+      }, 350);
+      return () => clearTimeout(t);
+    }
+    prevDone = done;
+  });
+
   const tasksStore = store(tasks);
 
   function onPointerDown(event: PointerEvent) {
@@ -133,6 +150,19 @@
     return `transform: translateX(${clamped}px); transition: none;`;
   }
 
+  // Opacity of the revealed red (left swipe) / green (right swipe) background,
+  // proportional to how far the card has been swiped. Returns 0..1.
+  function getRevealOpacity(): number {
+    if (isDragging) {
+      const delta = currentX - startX;
+      return Math.min(Math.abs(delta) / swipeThreshold, 1);
+    }
+    // Not dragging: keep the confirmed action's background fully revealed
+    return swipeAction === 'confirmed-left' || swipeAction === 'confirmed-right'
+      ? 1
+      : 0;
+  }
+
   function toggleSubtask(subtaskId: string) {
     const currentTask = tasks.get().find((t) => t.id === task.id);
     if (!currentTask) return;
@@ -195,21 +225,21 @@
 <div class="relative swipe-container">
   <!-- Left action (delete) -->
   <div class="absolute inset-y-0 left-0 w-full flex justify-end items-stretch" style="pointer-events: none;">
-    <div class={`w-20 bg-red-500 flex items-center justify-center transition-opacity ${swipeAction === 'confirmed-left' || swipeAction === 'left' ? 'opacity-100' : 'opacity-0'}`}>
+    <div class="w-20 bg-red-500 flex items-center justify-center transition-opacity duration-150" style={`opacity: ${getRevealOpacity()}`}>
       <Icon name="trash-2" size={20} class="text-white" />
     </div>
   </div>
 
   <!-- Right action (done) -->
   <div class="absolute inset-y-0 right-0 w-full flex justify-start items-stretch" style="pointer-events: none;">
-    <div class={`w-20 bg-green-500 flex items-center justify-center transition-opacity ${swipeAction === 'confirmed-right' || swipeAction === 'right' ? 'opacity-100' : 'opacity-0'}`}>
+    <div class="w-20 bg-green-500 flex items-center justify-center transition-opacity duration-150" style={`opacity: ${getRevealOpacity()}`}>
       <Icon name="check" size={22} class="text-white" />
     </div>
   </div>
 
   <!-- Task card -->
   <div
-    class={`relative bg-white dark:bg-neutral-900 rounded-card shadow-card ${compact ? 'p-3' : 'p-4'} no-select cursor-pointer touch-manipulation ${isOccurrenceDone ? 'opacity-60' : ''}`}
+    class={`relative bg-white dark:bg-neutral-900 rounded-card shadow-card ${compact ? 'p-3' : 'p-4'} no-select cursor-pointer touch-manipulation ${isPulsing ? 'task-pulse' : ''} ${isOccurrenceDone ? 'opacity-60' : ''}`}
     style={isDragging ? getLiveSwipeTransform() : getSwipeStyle()}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { store } from '../lib/svelteStore';
-  import { taskSheetOpen, taskSheetMode, taskSheetTask, closeTaskSheet, addToast } from '../stores/ui';
+  import { taskSheetOpen, taskSheetMode, taskSheetTask, closeTaskSheet, addToast, defaultBoomerangDays } from '../stores/ui';
   import { sortedLists } from '../stores/lists';
   import { tasks, createTask, updateTask } from '../stores/tasks';
   import { generateId, dateInputToISO, isoToDateInput } from '../lib/utils';
@@ -11,6 +11,7 @@
   const taskSheetModeStore = store(taskSheetMode);
   const taskSheetTaskStore = store(taskSheetTask);
   const listsStore = store(sortedLists);
+  const defaultBoomerangStore = store(defaultBoomerangDays);
 
   // Form state (Svelte 5 runes)
   let title = $state('');
@@ -55,6 +56,11 @@
         boomerangDays = null;
         boomerangEnabled = false;
         subtasks = [];
+        // Pre-fill boomerang with the global default (0 = off)
+        if (defaultBoomerangStore.value > 0) {
+          boomerangEnabled = true;
+          boomerangDays = defaultBoomerangStore.value;
+        }
       }
     }
   });
@@ -100,7 +106,7 @@
     if (!boomerangEnabled) {
       boomerangDays = null;
     } else if (boomerangDays === null) {
-      boomerangDays = 3;
+      boomerangDays = defaultBoomerangStore.value > 0 ? defaultBoomerangStore.value : 3;
     }
   }
 

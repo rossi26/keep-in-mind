@@ -1,11 +1,10 @@
 <script lang="ts">
-  import { currentView, darkMode, setView } from '../stores/ui';
+  import { currentView, setView, openSettings } from '../stores/ui';
   import type { View } from '../types';
   import { store } from '../lib/svelteStore';
   import Icon from './Icon.svelte';
 
   const currentViewStore = store(currentView);
-  const darkModeStore = store(darkMode);
 
   const navItems: { view: View; label: string; icon: string }[] = [
     { view: 'lists', label: 'Lists', icon: 'home' },
@@ -18,9 +17,6 @@
     setView(view);
   }
 
-  function toggleDarkMode(): void {
-    darkMode.set(!$darkModeStore);
-  }
 </script>
 
 <aside class="hidden md:flex flex-col w-60 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-full">
@@ -50,19 +46,14 @@
     {/each}
   </nav>
 
-  <!-- Dark mode toggle -->
+  <!-- Settings -->
   <div class="px-3 py-4 border-t border-neutral-200 dark:border-neutral-800">
     <button
-      onclick={toggleDarkMode}
+      onclick={openSettings}
       class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
     >
-      {#if $darkModeStore}
-        <Icon name="sun" size={18} />
-        <span>Light Mode</span>
-      {:else}
-        <Icon name="moon" size={18} />
-        <span>Dark Mode</span>
-      {/if}
+      <Icon name="settings" size={18} />
+      <span>Settings</span>
     </button>
   </div>
 </aside>

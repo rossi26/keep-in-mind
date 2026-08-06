@@ -13,6 +13,7 @@
   import FAB from './FAB.svelte';
   import TaskSheet from './TaskSheet.svelte';
   import Toast from './Toast.svelte';
+  import SettingsModal from './SettingsModal.svelte';
 
   const currentViewStore = store(currentView);
   const activeListIdStore = store(activeListId);
@@ -68,6 +69,9 @@
 
     <!-- Task creation/edit bottom sheet -->
     <TaskSheet />
+
+    <!-- Settings modal -->
+    <SettingsModal />
 
     <!-- Toasts -->
     <Toast />

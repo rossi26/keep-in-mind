@@ -1,5 +1,15 @@
-const CACHE_NAME = 'keep-in-mind-v1';
-const urlsToCache = [
+/* Keep in Mind — Service Worker
+ * Strategy:
+ *  - Precache the app shell (index, manifest, icons, fonts) on install.
+ *  - Runtime: stale-while-revalidate for same-origin GET requests.
+ *  - Navigation requests: network-first, fall back to cached index.html.
+ *  - Cache versioned so we can purge old caches on activate.
+ */
+const CACHE_VERSION = 'keep-in-mind-v2';
+const SHELL_CACHE = `${CACHE_VERSION}-shell`;
+const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
+
+const SHELL_URLS = [
   '/',
   '/manifest.json',
   '/favicon.svg',
@@ -7,60 +17,76 @@ const urlsToCache = [
   '/icons/icon-512.svg',
 ];
 
-// Install: cache core assets
+/* ---------- Install: precache the app shell ---------- */
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
+    caches
+      .open(SHELL_CACHE)
+      .then((cache) => cache.addAll(SHELL_URLS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate: clean up old caches
+/* ---------- Activate: clean up old caches ---------- */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => !key.startsWith(CACHE_VERSION))
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: network-first with cache fallback
+/* ---------- Fetch ---------- */
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
 
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) return;
+  // Only handle GET requests
+  if (request.method !== 'GET') return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache successful responses
-        if (response.ok) {
+  // Only handle same-origin requests
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Navigation requests: network-first, fall back to cached shell
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache the fresh navigation response
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Fall back to cache
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // For navigation requests, fall back to the cached index
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
+          caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match('/'))
+        )
+    );
+    return;
+  }
+
+  // Static assets (JS/CSS/images): stale-while-revalidate
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const networkFetch = fetch(request)
+        .then((response) => {
+          // Only cache valid responses
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, clone));
           }
-          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
-        });
-      })
+          return response;
+        })
+        .catch(() => cached);
+
+      // Return cached immediately if available, otherwise wait for network
+      return cached || networkFetch;
+    })
   );
 });
