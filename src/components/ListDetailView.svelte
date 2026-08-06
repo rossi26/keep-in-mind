@@ -3,6 +3,7 @@
   import { activeListId } from '../stores/ui';
   import { lists } from '../stores/lists';
   import { tasks } from '../stores/tasks';
+  import { getNextOccurrenceDate } from '../lib/utils';
   import Icon from './Icon.svelte';
   import TaskCard from './TaskCard.svelte';
   import type { Task } from '../types';
@@ -22,6 +23,15 @@
 
   function goBack(): void {
     activeListId.set(null);
+  }
+
+  // Display-only next occurrence for recurring tasks (badge cue in the list).
+  // Toggling a task in the list still treats it as a whole task.
+  function getDisplayOccurrence(task: Task): string | undefined {
+    if (task.isRecurring && task.status !== 'done') {
+      return getNextOccurrenceDate(task) ?? undefined;
+    }
+    return undefined;
   }
 </script>
 
@@ -55,7 +65,7 @@
     <!-- Active tasks -->
     <div class="space-y-2">
       {#each listTasks.filter((t) => t.status !== 'done') as task}
-        <TaskCard {task} />
+        <TaskCard {task} showOccurrenceDate={getDisplayOccurrence(task)} />
       {/each}
     </div>
 

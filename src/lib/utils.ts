@@ -267,3 +267,25 @@ export function getRecurringOccurrences(
 
   return occurrences;
 }
+
+/**
+ * Get the next non-completed occurrence date (YYYY-MM-DD) of a recurring task,
+ * searching from today forward within the given horizon (default 365 days).
+ * Returns null if the task is not recurring, has no dueDate, or all upcoming
+ * occurrences within the horizon are completed.
+ */
+export function getNextOccurrenceDate(
+  task: Task,
+  horizonDays = 365
+): string | null {
+  if (!task.isRecurring || !task.dueDate) return null;
+
+  const today = startOfDay(new Date());
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + horizonDays);
+
+  const occurrences = getRecurringOccurrences(task, today, horizon);
+  const completed = new Set(task.completedDates ?? []);
+  const next = occurrences.find((d) => !completed.has(toDateKey(d)));
+  return next ? toDateKey(next) : null;
+}

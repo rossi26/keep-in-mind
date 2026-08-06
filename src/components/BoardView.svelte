@@ -3,7 +3,8 @@
   import Sortable from 'sortablejs';
   import { store } from '../lib/svelteStore';
   import { tasks, reorderTasksByStatus, moveTaskToStatus, getTaskById } from '../stores/tasks';
-  import type { TaskStatus } from '../types';
+  import { getNextOccurrenceDate } from '../lib/utils';
+  import type { Task, TaskStatus } from '../types';
   import TaskCard from './TaskCard.svelte';
   import Icon from './Icon.svelte';
 
@@ -34,6 +35,15 @@
 
   function getTaskCount(status: TaskStatus): number {
     return $tasksStore.filter((t) => t.status === status).length;
+  }
+
+  // Display-only next occurrence for recurring tasks (badge cue in Board).
+  // Toggling/dragging a task in the Board still treats it as a whole task.
+  function getDisplayOccurrence(task: Task): string | undefined {
+    if (task.isRecurring && task.status !== 'done') {
+      return getNextOccurrenceDate(task) ?? undefined;
+    }
+    return undefined;
   }
 
   function toggleColumn(status: TaskStatus) {
@@ -167,7 +177,7 @@
         >
           {#each getTasksByStatus(col.status) as task}
             <div class="board-task" data-task-id={task.id}>
-              <TaskCard {task} compact />
+              <TaskCard {task} compact showOccurrenceDate={getDisplayOccurrence(task)} />
             </div>
           {/each}
 
@@ -217,7 +227,7 @@
             >
               {#each getTasksByStatus(col.status) as task}
                 <div class="board-task" data-task-id={task.id}>
-                  <TaskCard {task} compact />
+                  <TaskCard {task} compact showOccurrenceDate={getDisplayOccurrence(task)} />
                 </div>
               {/each}
 

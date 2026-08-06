@@ -21,7 +21,15 @@
     task,
     compact = false,
     occurrenceDate,
-  }: { task: Task; compact?: boolean; occurrenceDate?: string } = $props();
+    showOccurrenceDate,
+  }: {
+    task: Task;
+    compact?: boolean;
+    occurrenceDate?: string;
+    /** Display-only: next occurrence date for the badge (Board/List views).
+     *  Does NOT affect done state or toggle behaviour. */
+    showOccurrenceDate?: string;
+  } = $props();
 
   // A "single occurrence" (recurring task with occurrenceDate) is done when its
   // dateKey is in completedDates. For non-recurring tasks (or without
@@ -143,10 +151,17 @@
   );
   const percent = $derived(getSubtaskPercentage(task));
 
-  // Effective due date: for a single occurrence (recurring task with
-  // occurrenceDate), use that occurrence's date; otherwise the task's dueDate.
+  // Effective due date for the badge:
+  //  - single occurrence views (Calendar/Combined) pass occurrenceDate
+  //  - Board/List views pass showOccurrenceDate (next occurrence) for
+  //    recurring tasks, purely as a visual cue
+  //  - otherwise the task's own dueDate
   const effectiveDueDate = $derived(
-    task.isRecurring && occurrenceDate ? occurrenceDate : task.dueDate
+    task.isRecurring && occurrenceDate
+      ? occurrenceDate
+      : task.isRecurring && showOccurrenceDate
+        ? showOccurrenceDate
+        : task.dueDate
   );
   const isOverdue = $derived(
     effectiveDueDate && new Date(effectiveDueDate) < new Date() && !isOccurrenceDone

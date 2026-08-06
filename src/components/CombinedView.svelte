@@ -8,7 +8,7 @@
     startOfWeek,
     startOfDay,
     toDateKey,
-    getRecurringOccurrences,
+    getNextOccurrenceDate,
   } from '../lib/utils';
   import TaskCard from './TaskCard.svelte';
   import Icon from './Icon.svelte';
@@ -50,19 +50,6 @@
   // next available occurrence date.
   type DisplayTask = { task: Task; occurrenceDate?: string };
 
-  // Find the first non-completed occurrence of a recurring task within the
-  // next 365 days. Returns undefined if none found (task is effectively hidden
-  // from Combined until rescheduled).
-  function getNextOccurrenceDate(task: Task): string | undefined {
-    if (!task.isRecurring || !task.dueDate) return undefined;
-    const today = startOfDay(new Date());
-    const horizon = new Date(today);
-    horizon.setDate(horizon.getDate() + 365);
-    const occurrences = getRecurringOccurrences(task, today, horizon);
-    const completed = new Set(task.completedDates ?? []);
-    const next = occurrences.find((d) => !completed.has(toDateKey(d)));
-    return next ? toDateKey(next) : undefined;
-  }
 
   // Effective date key for date filters: the occurrence date for recurring
   // tasks, otherwise the task's own due date.
@@ -78,7 +65,7 @@
   const displayTasks = $derived<DisplayTask[]>(
     $tasksStore.map((task) => {
       if (task.isRecurring && task.status !== 'done') {
-        return { task, occurrenceDate: getNextOccurrenceDate(task) };
+        return { task, occurrenceDate: getNextOccurrenceDate(task) ?? undefined };
       }
       return { task };
     })
