@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  body {
+    @apply font-sans antialiased bg-surface-light dark:bg-surface-dark text-neutral-800 dark:text-neutral-100;
+    overscroll-behavior-y: none;
+  }
+
+  /* Custom scrollbar for desktop */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 dark:bg-neutral-600 rounded-full;
+  }
+}
+
+@layer components {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+/* Swipe action container */
+.swipe-container {
+  @apply relative overflow-hidden rounded-card;
+}
+
+.swipe-actions {
+  @apply absolute inset-y-0 flex items-stretch transition-opacity;
+}
+
+/* SortableJS ghost styling */
+.sortable-ghost {
+  @apply opacity-50 bg-primary/10 border-2 border-dashed border-primary rounded-card;
+}
+
+.sortable-drag {
+  @apply shadow-card-hover rotate-1;
+}
+
+/* Bottom sheet drag handle */
+.sheet-handle {
+  @apply w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 mx-auto;
+}
+
+/* Subtask progress bar */
+.progress-bar {
+  @apply h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden;
+}
+
+.progress-bar-fill {
+  @apply h-full rounded-full bg-primary transition-all duration-300;
+}

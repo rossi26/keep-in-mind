@@ -1,0 +1,27 @@
+{
+  "name": "keep-in-mind",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/svelte": "^7.2.5",
+    "@astrojs/tailwind": "^5.1.0",
+    "@nanostores/persistent": "^0.10.0",
+    "astro": "^5.1.0",
+    "lucide-svelte": "^0.460.0",
+    "nanostores": "^0.11.0",
+    "sortablejs": "^1.15.0",
+    "svelte": "^5.0.0",
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/sortablejs": "^1.15.0",
+    "typescript": "^5.6.0"
+  }
+}
