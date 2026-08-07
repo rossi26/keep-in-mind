@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.lists (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
-  client_id text,                -- original client-generated ID (string)
+  client_id text UNIQUE,         -- original client-generated ID (string)
   name text NOT NULL,
   color text NOT NULL DEFAULT '#01696f',
   icon text NOT NULL DEFAULT 'user',
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.lists (
 CREATE TABLE IF NOT EXISTS public.tasks (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
-  client_id text,                -- original client-generated ID (string)
+  client_id text UNIQUE,         -- original client-generated ID (string)
   list_client_id text,           -- client list ID reference
   title text NOT NULL,
   notes text DEFAULT '',

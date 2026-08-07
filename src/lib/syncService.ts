@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, isConfigured } from './supabase';
 import { tasks } from '../stores/tasks';
 import { lists } from '../stores/lists';
@@ -197,10 +198,19 @@ function rowToList(row: ListRow): List {
 async function setupAuth(): Promise<void> {
   if (!supabase) return;
 
-  // Get current session (restore persisted login)
-  const { data } = await supabase.auth.getSession();
-  if (data.session) {
-    setCurrentUser(data.session.user);
+  try {
+    // Get current session (restore persisted login)
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      setCurrentUser(data.session.user);
+      // Set up realtime immediately for restored sessions
+      setupRealtime();
+    }
+  } catch (err) {
+    console.error('[sync] getSession failed:', err);
+    // Continue without session — app runs local-only
+    setSyncReady(true);
+    setSyncStatus('error');
   }
 
   // Listen for auth changes
@@ -208,8 +218,14 @@ async function setupAuth(): Promise<void> {
     setCurrentUser(session?.user ?? null);
     if (session?.user) {
       void pullAll();
+      setupRealtime();
     } else {
       // Logged out: clear sync state, keep local data cached
+      if (supabase && realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+        realtimeChannelUserId = null;
+      }
       setSyncReady(false);
       setSyncStatus('idle');
     }
@@ -386,6 +402,17 @@ async function flushQueue(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Push local changes to remote
 // ---------------------------------------------------------------------------
+// Helper: log detailed Supabase error info (message + code + details)
+function logSupabaseError(context: string, err: unknown): void {
+  const e = err as { message?: string; code?: string; details?: string; hint?: string };
+  console.error(`[sync] ${context}:`, {
+    message: e?.message ?? String(err),
+    code: e?.code,
+    details: e?.details,
+    hint: e?.hint,
+  });
+}
+
 async function pushTasks(): Promise<void> {
   if (!supabase || pushing || applyingRemote || !currentUser.get()) return;
   const userId = currentUser.get()!.id;
@@ -397,14 +424,15 @@ async function pushTasks(): Promise<void> {
   try {
     for (const task of batch) {
       const updatedAt = bumpMeta(task.id);
-      await supabase.from('tasks').upsert(
+      const { error } = await supabase.from('tasks').upsert(
         { ...taskToRow(task, userId, updatedAt), id: undefined },
         { onConflict: 'client_id' }
       );
+      if (error) throw error;
     }
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
-    console.error('[sync] pushTasks failed:', err);
+    logSupabaseError('pushTasks failed', err);
     if (!isOnline) {
       setSyncStatus('offline');
     } else {
@@ -426,14 +454,15 @@ async function pushLists(): Promise<void> {
   try {
     for (const list of batch) {
       const updatedAt = bumpMeta(list.id);
-      await supabase.from('lists').upsert(
+      const { error } = await supabase.from('lists').upsert(
         { ...listToRow(list, userId, updatedAt), id: undefined },
         { onConflict: 'client_id' }
       );
+      if (error) throw error;
     }
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
-    console.error('[sync] pushLists failed:', err);
+    logSupabaseError('pushLists failed', err);
     if (!isOnline) {
       setSyncStatus('offline');
     } else {
@@ -453,15 +482,29 @@ interface RealtimePayload {
   old?: Record<string, unknown>;
 }
 
-let realtimeChannel: { unsubscribe: () => void } | null = null;
+let realtimeChannel: RealtimeChannel | null = null;
+
+// Track which user the realtime channel is subscribed for
+// (different users need different channels; same user must reuse one channel)
+let realtimeChannelUserId: string | null = null;
 
 function setupRealtime(): void {
   if (!supabase || !currentUser.get()) return;
   const userId = currentUser.get()!.id;
 
+  // If we already have a channel for this user, don't create a second one
+  if (realtimeChannel && realtimeChannelUserId === userId) return;
+
+  // Remove any pre-existing channel (e.g. after logout/login with different user)
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+    realtimeChannelUserId = null;
+  }
+
   // Use channel with filter on user_id (RLS restricts anyway)
   const channel = supabase
-    .channel('kmm-realtime')
+    .channel(`kmm-realtime-${userId}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
@@ -479,6 +522,7 @@ function setupRealtime(): void {
     .subscribe();
 
   realtimeChannel = channel;
+  realtimeChannelUserId = userId;
 }
 
 async function handleRemoteChange(
@@ -616,21 +660,6 @@ let pushDebounce: ReturnType<typeof setTimeout> | null = null;
 let pushDebounceLists: ReturnType<typeof setTimeout> | null = null;
 
 // ---------------------------------------------------------------------------
-// Auth change observer: start realtime + pull after login
-// ---------------------------------------------------------------------------
-function setupRealtimeAfterLogin(): void {
-  currentUser.subscribe((user) => {
-    if (user && supabase) {
-      // Give a moment for auth to settle, then pull + start realtime
-      setTimeout(() => {
-        void pullAll();
-        setupRealtime();
-      }, 300);
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 export function initSync(): void {
@@ -655,6 +684,5 @@ export function initSync(): void {
     // Subscribe to local stores only after auth setup so we don't push
     // while not logged in (sync is no-op when no user anyway)
     setupLocalSubscriptions();
-    setupRealtimeAfterLogin();
   });
 }
