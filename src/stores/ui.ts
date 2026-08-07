@@ -27,6 +27,9 @@ export const darkMode = atom<boolean>(
 // Settings modal visibility
 export const settingsOpen = atom<boolean>(false);
 
+// Auth modal visibility
+export const authModalOpen = atom<boolean>(false);
+
 // Global default boomerang days (used as the default when creating a task)
 export const defaultBoomerangDays = persistentAtom<number>('kmm-boomerang-default', 3, {
   encode: (v) => String(v),
@@ -39,6 +42,16 @@ export const defaultBoomerangDays = persistentAtom<number>('kmm-boomerang-defaul
 /** Open the settings modal */
 export function openSettings(): void {
   settingsOpen.set(true);
+}
+
+/** Open the auth modal */
+export function openAuthModal(): void {
+  authModalOpen.set(true);
+}
+
+/** Close the auth modal */
+export function closeAuthModal(): void {
+  authModalOpen.set(false);
 }
 
 /** Close the settings modal */

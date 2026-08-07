@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { currentView, setView, openSettings } from '../stores/ui';
-  import type { View } from '../types';
+  import { currentView, setView, openSettings, openAuthModal } from '../stores/ui';
+  import { currentUser } from '../stores/sync';
   import { store } from '../lib/svelteStore';
   import Icon from './Icon.svelte';
+  import type { View } from '../types';
 
   const currentViewStore = store(currentView);
+  const currentUserStore = store(currentUser);
 
   const navItems: { view: View; label: string; icon: string }[] = [
     { view: 'lists', label: 'Lists', icon: 'home' },
@@ -37,6 +39,21 @@
     {/each}
   </div>
 </nav>
+
+<!-- Account button for mobile - top right floating -->
+<button
+  onclick={openAuthModal}
+  class="md:hidden fixed top-4 right-16 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
+  aria-label="Account and sync"
+>
+  {#if $currentUserStore}
+    <span class="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+      {($currentUserStore.email ?? '?').charAt(0).toUpperCase()}
+    </span>
+  {:else}
+    <Icon name="cloud" size={18} />
+  {/if}
+</button>
 
 <!-- Settings button for mobile - top right floating -->
 <button

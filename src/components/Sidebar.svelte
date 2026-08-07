@@ -3,6 +3,7 @@
   import type { View } from '../types';
   import { store } from '../lib/svelteStore';
   import Icon from './Icon.svelte';
+  import SyncBadge from './SyncBadge.svelte';
 
   const currentViewStore = store(currentView);
 
@@ -46,8 +47,13 @@
     {/each}
   </nav>
 
+  <!-- Sync / Account -->
+  <div class="px-3 py-2 border-t border-neutral-200 dark:border-neutral-800">
+    <SyncBadge />
+  </div>
+
   <!-- Settings -->
-  <div class="px-3 py-4 border-t border-neutral-200 dark:border-neutral-800">
+  <div class="px-3 py-3 border-t border-neutral-200 dark:border-neutral-800">
     <button
       onclick={openSettings}
       class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"

@@ -3,6 +3,7 @@
   import { store } from '../lib/svelteStore';
   import { currentView, activeListId } from '../stores/ui';
   import { runBoomerangCheck } from '../stores/tasks';
+  import { initSync } from '../lib/syncService';
   import ListsView from './ListsView.svelte';
   import ListDetailView from './ListDetailView.svelte';
   import CalendarView from './CalendarView.svelte';
@@ -14,6 +15,7 @@
   import TaskSheet from './TaskSheet.svelte';
   import Toast from './Toast.svelte';
   import SettingsModal from './SettingsModal.svelte';
+  import AuthModal from './AuthModal.svelte';
 
   const currentViewStore = store(currentView);
   const activeListIdStore = store(activeListId);
@@ -22,6 +24,9 @@
 
   onMount(() => {
     isHydrated = true;
+
+    // Initialize Supabase sync (safe no-op when unconfigured)
+    initSync();
 
     // Run boomerang check on app mount
     // Individual toasts are emitted by runBoomerangCheck itself
@@ -72,6 +77,9 @@
 
     <!-- Settings modal -->
     <SettingsModal />
+
+    <!-- Auth modal -->
+    <AuthModal />
 
     <!-- Toasts -->
     <Toast />

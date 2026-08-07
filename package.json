@@ -13,6 +13,7 @@
     "@astrojs/svelte": "^7.2.5",
     "@astrojs/tailwind": "^5.1.0",
     "@nanostores/persistent": "^0.10.0",
+    "@supabase/supabase-js": "^2.112.2",
     "astro": "^5.1.0",
     "lucide-svelte": "^0.460.0",
     "nanostores": "^0.11.0",

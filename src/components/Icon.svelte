@@ -42,6 +42,13 @@
     SlidersHorizontal,
     Filter,
     Search,
+    Wifi,
+    WifiOff,
+    CloudOff,
+    Cloud,
+    LogIn,
+    LogOut,
+    RefreshCw,
   } from 'lucide-svelte';
 
   let {
@@ -93,6 +100,13 @@
     'sliders-horizontal': SlidersHorizontal,
     filter: Filter,
     search: Search,
+    wifi: Wifi,
+    'wifi-off': WifiOff,
+    'cloud-off': CloudOff,
+    cloud: Cloud,
+    'log-in': LogIn,
+    'log-out': LogOut,
+    'refresh-cw': RefreshCw,
   };
 </script>
 

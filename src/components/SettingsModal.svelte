@@ -1,19 +1,35 @@
 <script lang="ts">
   import { store } from '../lib/svelteStore';
-  import { darkMode, settingsOpen, closeSettings, defaultBoomerangDays } from '../stores/ui';
+  import { darkMode, settingsOpen, closeSettings, defaultBoomerangDays, openAuthModal } from '../stores/ui';
   import { clearCompletedTasks, tasks } from '../stores/tasks';
   import { addToast } from '../stores/ui';
+  import { currentUser, syncStatus, syncEnabled } from '../stores/sync';
+  import { supabase, isConfigured } from '../lib/supabase';
   import Icon from './Icon.svelte';
+  import SyncBadge from './SyncBadge.svelte';
 
   const settingsOpenStore = store(settingsOpen);
   const darkModeStore = store(darkMode);
   const defaultBoomerangStore = store(defaultBoomerangDays);
   const tasksStore = store(tasks);
+  const currentUserStore = store(currentUser);
+  const syncStatusStore = store(syncStatus);
+  const syncEnabledStore = store(syncEnabled);
 
   let confirmClear = $state(false);
 
   function toggleDarkMode(): void {
     darkMode.set(!$darkModeStore);
+  }
+
+  async function handleLogout(): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase.auth.signOut();
+      addToast('Signed out', 'info');
+    } catch {
+      addToast('Failed to sign out', 'error');
+    }
   }
 
   function onBoomerangInput(event: Event): void {
@@ -81,6 +97,40 @@
       </div>
 
       <div class="p-5 md:p-6 space-y-6">
+        <!-- Account & Sync -->
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2">
+            Account & Sync
+          </h3>
+          <div class="bg-white dark:bg-neutral-800 rounded-card border border-neutral-200 dark:border-neutral-700 p-1">
+            <SyncBadge />
+          </div>
+          {#if $currentUserStore}
+            <button
+              type="button"
+              onclick={handleLogout}
+              class="w-full flex items-center justify-center gap-2 mt-2 px-4 py-2.5 rounded-card border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Icon name="log-out" size={16} />
+              Sign out
+            </button>
+          {:else}
+            <button
+              type="button"
+              onclick={openAuthModal}
+              class="w-full flex items-center justify-center gap-2 mt-2 px-4 py-2.5 rounded-card bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <Icon name="log-in" size={16} />
+              Sign in to sync
+            </button>
+          {/if}
+          {#if !isConfigured}
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+              Set up Supabase credentials in <code class="font-mono">.env</code> to enable cloud sync across devices.
+            </p>
+          {/if}
+        </section>
+
         <!-- Appearance -->
         <section>
           <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2">
