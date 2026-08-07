@@ -7,7 +7,7 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["astro/client"],
+    "types": ["astro/client", "node"],
     "allowJs": true,
     "checkJs": false
   }
