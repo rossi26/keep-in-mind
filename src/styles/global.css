@@ -35,8 +35,40 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* Safe top with minimum padding so buttons are never under the iOS status bar/notch */
   .safe-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  /* For fixed elements: position above the iOS home indicator / safe bottom */
+  .safe-bottom-fixed {
+    bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+
+  /* FAB position: above bottom nav (5rem) + safe area on mobile; bottom-right on desktop */
+  .fab-position {
+    position: fixed;
+    bottom: calc(max(env(safe-area-inset-bottom), 0px) + 5rem);
+    right: 1rem;
+    z-index: 40;
+  }
+
+  @media (min-width: 768px) {
+    .fab-position {
+      bottom: 2rem;
+      right: 2rem;
+    }
+  }
+
+  /* Page/header top padding: below iOS status bar on mobile; normal on desktop */
+  .safe-area-header {
+    padding-top: max(env(safe-area-inset-top), 1rem);
+  }
+
+  @media (min-width: 768px) {
+    .safe-area-header {
+      padding-top: 2rem;
+    }
   }
 
   .no-select {

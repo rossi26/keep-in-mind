@@ -47,8 +47,8 @@
   }
 
   function toggleColumn(status: TaskStatus) {
-    // Always expand the tapped column (only one open at a time)
-    expandedColumn = status;
+    // Toggle: if the tapped column is open, close it; otherwise open it (only one open at a time)
+    expandedColumn = expandedColumn === status ? null : status;
   }
 
   function setupSortable(el: HTMLElement, status: TaskStatus) {

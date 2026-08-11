@@ -1,6 +1,6 @@
 <script lang="ts">
   import { store } from '../lib/svelteStore';
-  import { taskSheetOpen, taskSheetMode, taskSheetTask, closeTaskSheet, addToast, defaultBoomerangDays } from '../stores/ui';
+  import { taskSheetOpen, taskSheetMode, taskSheetTask, taskSheetListId, closeTaskSheet, addToast, defaultBoomerangDays } from '../stores/ui';
   import { sortedLists } from '../stores/lists';
   import { tasks, createTask, updateTask } from '../stores/tasks';
   import { generateId, dateInputToISO, isoToDateInput } from '../lib/utils';
@@ -10,6 +10,7 @@
   const taskSheetOpenStore = store(taskSheetOpen);
   const taskSheetModeStore = store(taskSheetMode);
   const taskSheetTaskStore = store(taskSheetTask);
+  const taskSheetListIdStore = store(taskSheetListId);
   const listsStore = store(sortedLists);
   const defaultBoomerangStore = store(defaultBoomerangDays);
 
@@ -48,7 +49,7 @@
       } else {
         title = '';
         notes = '';
-        listId = $listsStore[0]?.id ?? '';
+        listId = $taskSheetListIdStore ?? $listsStore[0]?.id ?? '';
         status = 'todo';
         dueDate = '';
         isRecurring = false;

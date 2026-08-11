@@ -40,10 +40,11 @@
   </div>
 </nav>
 
-<!-- Account button for mobile - top right floating -->
+<!-- Account button for mobile - top right floating (below iOS status bar) -->
 <button
   onclick={openAuthModal}
-  class="md:hidden fixed top-4 right-16 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
+  style="top: max(env(safe-area-inset-top), 1rem)"
+  class="md:hidden fixed right-16 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
   aria-label="Account and sync"
 >
   {#if $currentUserStore}
@@ -55,10 +56,11 @@
   {/if}
 </button>
 
-<!-- Settings button for mobile - top right floating -->
+<!-- Settings button for mobile - top right floating (below iOS status bar) -->
 <button
   onclick={openSettings}
-  class="md:hidden fixed top-4 right-4 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
+  style="top: max(env(safe-area-inset-top), 1rem)"
+  class="md:hidden fixed right-4 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
   aria-label="Open settings"
 >
   <Icon name="settings" size={18} />

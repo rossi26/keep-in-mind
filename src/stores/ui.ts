@@ -13,6 +13,9 @@ export const taskSheetOpen = atom<boolean>(false);
 export const taskSheetMode = atom<TaskSheetMode>('create');
 export const taskSheetTask = atom<Task | null>(null);
 
+// Default list id for new tasks in the sheet (set from activeListId when opened from a list)
+export const taskSheetListId = atom<string | null>(null);
+
 // Toast notifications
 export const toasts = atom<ToastMessage[]>([]);
 
@@ -89,6 +92,7 @@ export function removeToast(id: string): void {
 export function openCreateSheet(): void {
   taskSheetMode.set('create');
   taskSheetTask.set(null);
+  taskSheetListId.set(activeListId.get());
   taskSheetOpen.set(true);
 }
 
@@ -103,6 +107,7 @@ export function openEditSheet(task: Task): void {
 export function closeTaskSheet(): void {
   taskSheetOpen.set(false);
   taskSheetTask.set(null);
+  taskSheetListId.set(null);
 }
 
 /** Set the current view and clear active list when switching to non-lists views */

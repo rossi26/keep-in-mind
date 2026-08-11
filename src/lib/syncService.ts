@@ -68,6 +68,10 @@ type PendingOp =
 const QUEUE_KEY = 'kmm-sync-queue';
 let pendingQueue: PendingOp[] = [];
 
+// Track previous local ids so we can detect deletions and propagate them remotely
+let lastTaskIds = new Set<string>();
+let lastListIds = new Set<string>();
+
 function loadQueue(): void {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
@@ -605,9 +609,38 @@ async function handleRemoteChange(
 // Local store subscriptions (react to local changes)
 // ---------------------------------------------------------------------------
 function setupLocalSubscriptions(): void {
+  // Baseline for deletion tracking (before first subscription callback)
+  lastTaskIds = new Set(tasks.get().map((t) => t.id));
+  lastListIds = new Set(lists.get().map((l) => l.id));
+
   // Subscribe to tasks store changes
   tasks.subscribe(() => {
-    if (applyingRemote || !currentUser.get()) return;
+    const currentIds = new Set(tasks.get().map((t) => t.id));
+
+    // When applying remote changes (or no user), just update tracking baseline
+    if (applyingRemote || !currentUser.get()) {
+      lastTaskIds = currentIds;
+      return;
+    }
+
+    // Detect local deletions and queue delete ops for the remote
+    const removed = Array.from(lastTaskIds).filter((id) => !currentIds.has(id));
+    lastTaskIds = currentIds;
+    if (removed.length > 0) {
+      // Drop any queued upsert for these ids (they no longer exist locally)
+      pendingQueue = [
+        ...pendingQueue.filter((op) => {
+          if (op.type === 'upsert-task' && removed.includes(op.task.id)) return false;
+          return true;
+        }),
+        ...removed.map((id) => ({ type: 'delete-task' as const, id })),
+      ];
+      persistQueue();
+      // If online, flush the deletes right away (offline: flushed on reconnect)
+      if (isOnline) {
+        void flushQueue();
+      }
+    }
 
     if (!isOnline) {
       // Offline: queue the full current state (simplified: queue full batch)
@@ -633,7 +666,32 @@ function setupLocalSubscriptions(): void {
 
   // Subscribe to lists store changes
   lists.subscribe(() => {
-    if (applyingRemote || !currentUser.get()) return;
+    const currentIds = new Set(lists.get().map((l) => l.id));
+
+    // When applying remote changes (or no user), just update tracking baseline
+    if (applyingRemote || !currentUser.get()) {
+      lastListIds = currentIds;
+      return;
+    }
+
+    // Detect local deletions and queue delete ops for the remote
+    const removed = Array.from(lastListIds).filter((id) => !currentIds.has(id));
+    lastListIds = currentIds;
+    if (removed.length > 0) {
+      // Drop any queued upsert for these ids (they no longer exist locally)
+      pendingQueue = [
+        ...pendingQueue.filter((op) => {
+          if (op.type === 'upsert-list' && removed.includes(op.list.id)) return false;
+          return true;
+        }),
+        ...removed.map((id) => ({ type: 'delete-list' as const, id })),
+      ];
+      persistQueue();
+      // If online, flush the deletes right away (offline: flushed on reconnect)
+      if (isOnline) {
+        void flushQueue();
+      }
+    }
 
     if (!isOnline) {
       pendingQueue = [

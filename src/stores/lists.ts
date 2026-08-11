@@ -3,6 +3,7 @@ import { computed } from 'nanostores';
 import type { List } from '../types';
 import { seedLists } from '../lib/seed';
 import { generateId } from '../lib/utils';
+import { tasks } from './tasks';
 
 // Helper to parse JSON with fallback
 function parseLists(value: string): List[] {
@@ -66,6 +67,8 @@ export function updateListAppearance(
 /** Delete a list and its tasks */
 export function deleteList(id: string): void {
   lists.set(lists.get().filter((l) => l.id !== id));
+  // Also remove tasks belonging to the deleted list
+  tasks.set(tasks.get().filter((t) => t.listId !== id));
 }
 
 /** Reorder lists */
