@@ -217,14 +217,14 @@
       <!-- List selector -->
       <div class="mb-3">
         <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block" for="task-list">List</label>
-        <div class="flex flex-wrap gap-2" id="task-list">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2" id="task-list">
           {#each $listsStore as list}
             <button
               type="button"
               onclick={() => (listId = list.id)}
-              class={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              class={`px-3 py-2 rounded-lg text-xs font-medium transition-colors truncate ${
                 listId === list.id
-                  ? 'text-white'
+                  ? 'text-white shadow-md'
                   : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
               }`}
               style={listId === list.id ? `background-color: ${list.color}` : ''}
@@ -394,7 +394,7 @@
             </div>
           {/each}
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             bind:value={newSubtaskTitle}
@@ -410,7 +410,7 @@
           <button
             type="button"
             onclick={addSubtask}
-            class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium"
+            class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium w-full sm:w-auto"
           >
             Add
           </button>

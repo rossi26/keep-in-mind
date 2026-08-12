@@ -549,6 +549,7 @@ function setupRealtime(): void {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
       (payload) => {
+        console.log('[sync] realtime task change:', payload.eventType);
         void handleRemoteChange('tasks', payload as unknown as RealtimePayload);
       }
     )
@@ -556,10 +557,16 @@ function setupRealtime(): void {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lists', filter: `user_id=eq.${userId}` },
       (payload) => {
+        console.log('[sync] realtime list change:', payload.eventType);
         void handleRemoteChange('lists', payload as unknown as RealtimePayload);
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('[sync] realtime channel status:', status);
+      if (status === 'CHANNEL_ERROR') {
+        setSyncStatus('error');
+      }
+    });
 
   realtimeChannel = channel;
   realtimeChannelUserId = userId;

@@ -82,19 +82,9 @@
 
 <div class="safe-area-header px-4 md:px-8 pb-4 md:pb-8 max-w-5xl mx-auto w-full relative z-50">
   <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Lists</h1>
-      <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Organize your tasks by category</p>
-    </div>
-    <button
-      type="button"
-      onclick={openCreateModal}
-      class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-colors"
-    >
-      <Icon name="plus" size={16} />
-      <span class="hidden sm:inline">New List</span>
-    </button>
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Lists</h1>
+    <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">Organize your tasks by category</p>
   </div>
 
   <!-- Lists grid: 2 cols mobile, 3 desktop -->
