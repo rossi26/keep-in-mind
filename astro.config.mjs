@@ -6,4 +6,5 @@ export default defineConfig({
   integrations: [svelte(), tailwind()],
   output: 'static',
   site: 'https://keep-in-mind.netlify.app',
+  devToolbar: { enabled: false },
 });
