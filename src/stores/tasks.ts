@@ -4,6 +4,7 @@ import type { Task, Subtask, TaskStatus } from '../types';
 import { seedTasks } from '../lib/seed';
 import { generateId, createSubtask, todayISO, formatDate } from '../lib/utils';
 import { addToast } from './ui';
+import { markTaskDeleted } from './tombstones';
 
 // Helper to parse JSON with fallback
 function parseTasks(value: string): Task[] {
@@ -63,6 +64,9 @@ export function updateTask(id: string, patch: Partial<Task>): void {
 
 /** Delete a task */
 export function deleteTask(id: string): void {
+  // Record tombstone so the deletion propagates remotely even
+  // when offline / not signed in at deletion time.
+  markTaskDeleted(id);
   tasks.set(tasks.get().filter((t) => t.id !== id));
 }
 
@@ -268,35 +272,54 @@ export function reorderSubtasks(taskId: string, orderedIds: string[]): void {
 }
 
 /**
- * Boomerang check: reschedule overdue tasks with boomerangDays set
- * Run on app mount. Returns number of tasks rescheduled.
+ * Boomerang check: reschedule overdue tasks with boomerangDays (or
+ * boomerangHours) set. Runs on app mount.
+ *
+ * Rules:
+ *  - If boomerangHours is set: reschedule when (now - dueDate) >= boomerangHours.
+ *  - Else if boomerangDays is set: reschedule when (today - dueDate) >= boomerangDays.
+ *
+ * Returns number of tasks rescheduled.
  */
 export function runBoomerangCheck(): number {
   const current = tasks.get();
   const today = todayISO();
+  const now = new Date();
   let rescheduled = 0;
   const rescheduledTitles: string[] = [];
 
   const updated = current.map((task) => {
-    if (
-      task.status === 'todo' &&
-      task.dueDate &&
-      task.boomerangDays !== null &&
-      task.boomerangDays > 0
-    ) {
+    if (task.status === 'todo' && task.dueDate) {
       const due = new Date(task.dueDate);
-      due.setHours(0, 0, 0, 0);
-      const todayDate = new Date(today);
-      todayDate.setHours(0, 0, 0, 0);
 
-      const diffDays = Math.round(
-        (todayDate.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      // Hour-based boomerang (more precise than day-based)
+      if (task.boomerangHours !== null && task.boomerangHours !== undefined && task.boomerangHours > 0) {
+        const diffMs = now.getTime() - due.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours >= task.boomerangHours) {
+          rescheduled++;
+          rescheduledTitles.push(task.title);
+          return { ...task, dueDate: today };
+        }
+        return task;
+      }
 
-      if (diffDays >= task.boomerangDays) {
-        rescheduled++;
-        rescheduledTitles.push(task.title);
-        return { ...task, dueDate: today };
+      // Day-based boomerang
+      if (task.boomerangDays && task.boomerangDays > 0) {
+        const dueStart = new Date(due);
+        dueStart.setHours(0, 0, 0, 0);
+        const todayStart = new Date(today);
+        todayStart.setHours(0, 0, 0, 0);
+
+        const diffDays = Math.round(
+          (todayStart.getTime() - dueStart.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (diffDays >= task.boomerangDays) {
+          rescheduled++;
+          rescheduledTitles.push(task.title);
+          return { ...task, dueDate: today };
+        }
       }
     }
     return task;

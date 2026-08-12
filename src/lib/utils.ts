@@ -12,24 +12,34 @@ export function todayISO(): string {
   return d.toISOString();
 }
 
-/** Format a date using the user's browser locale */
+/** Whether an ISO string includes a time-of-day component */
+function hasTimeComponent(isoString: string): boolean {
+  // "2025-05-08" vs "2025-05-08T10:30:00.000Z" or "…T10:30"
+  return isoString.includes('T');
+}
+
+/** Format a date using the user's browser locale (time included if present) */
 export function formatDate(isoString: string | null): string {
   if (!isoString) return '';
   const date = new Date(isoString);
+  const includeTime = hasTimeComponent(isoString);
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
+    ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   }).format(date);
 }
 
-/** Format a date with the year included */
+/** Format a date with the year included (time included if present) */
 export function formatDateFull(isoString: string | null): string {
   if (!isoString) return '';
   const date = new Date(isoString);
+  const includeTime = hasTimeComponent(isoString);
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   }).format(date);
 }
 
@@ -37,20 +47,36 @@ export function formatDateFull(isoString: string | null): string {
 export function formatRelativeDate(isoString: string | null): string {
   if (!isoString) return '';
   const date = new Date(isoString);
-  date.setHours(0, 0, 0, 0);
+  const includeTime = hasTimeComponent(isoString);
+  const startOfDue = new Date(date);
+  startOfDue.setHours(0, 0, 0, 0);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const diffTime = date.getTime() - today.getTime();
+  const diffTime = startOfDue.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays > 1 && diffDays < 7) {
-    return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date);
+  let base: string;
+  if (diffDays === 0) {
+    base = 'Today';
+  } else if (diffDays === 1) {
+    base = 'Tomorrow';
+  } else if (diffDays === -1) {
+    base = 'Yesterday';
+  } else if (diffDays > 1 && diffDays < 7) {
+    base = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date);
+  } else {
+    base = formatDateFull(isoString);
   }
-  return formatDateFull(isoString);
+
+  if (includeTime && (diffDays === 0 || diffDays === 1 || diffDays === -1)) {
+    const time = new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+    return `${base}, ${time}`;
+  }
+  return base;
 }
 
 /** Check if a task's due date is in the past */
@@ -114,23 +140,41 @@ export function createTask(partial: Partial<Task>): Task {
   };
 }
 
-/** Parse a date input value (YYYY-MM-DD) into an ISO string at local midnight */
+/**
+ * Parse a datetime-local input value (YYYY-MM-DDTHH:mm) into an ISO string.
+ * If only a date is provided (no "T"), treats it as local midnight.
+ */
 export function dateInputToISO(dateStr: string | null): string | null {
   if (!dateStr) return null;
-  // dateStr is like "2025-05-08"
+  // dateStr is like "2025-05-08" or "2025-05-08T10:30"
+  if (dateStr.includes('T')) {
+    const [datePart, timePart] = dateStr.split('T');
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [hh, mm] = timePart.split(':').map(Number);
+    const date = new Date(y, m - 1, d, hh, mm);
+    return date.toISOString();
+  }
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toISOString();
 }
 
-/** Format an ISO string to a date input value (YYYY-MM-DD) */
+/**
+ * Format an ISO string to a datetime-local input value (YYYY-MM-DDTHH:mm).
+ * If the ISO has no time component, returns just the date (YYYY-MM-DD).
+ */
 export function isoToDateInput(isoString: string | null): string {
   if (!isoString) return '';
   const date = new Date(isoString);
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  if (!hasTimeComponent(isoString)) {
+    return `${y}-${m}-${d}`;
+  }
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${hh}:${mm}`;
 }
 
 /** Escape HTML for safety */

@@ -2,16 +2,22 @@
   import { store } from '../lib/svelteStore';
   import { authModalOpen, closeAuthModal } from '../stores/ui';
   import { supabase } from '../lib/supabase';
-  import { setSyncStatus } from '../stores/sync';
+  import { currentUser, syncEnabled, syncStatus } from '../stores/sync';
+  import { signOut } from '../lib/syncService';
   import { addToast } from '../stores/ui';
+  import Icon from './Icon.svelte';
 
   const authModalOpenStore = store(authModalOpen);
+  const currentUserStore = store(currentUser);
+  const syncEnabledStore = store(syncEnabled);
+  const syncStatusStore = store(syncStatus);
 
   let mode = $state<'login' | 'signup'>('login');
   let email = $state('');
   let password = $state('');
   let loading = $state(false);
   let errorMsg = $state('');
+  let signingOut = $state(false);
 
   function switchMode(): void {
     mode = mode === 'login' ? 'signup' : 'login';
@@ -79,10 +85,34 @@
     }
   }
 
+  async function handleSignOut(): Promise<void> {
+    signingOut = true;
+    errorMsg = '';
+    try {
+      await signOut();
+      addToast('Signed out. Your local data is preserved.', 'info');
+      closeAuthModal();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign out failed';
+      errorMsg = message;
+    } finally {
+      signingOut = false;
+    }
+  }
+
   function onBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
       closeAuthModal();
     }
+  }
+
+  function getSyncLabel(): string {
+    if (!$syncEnabledStore) return 'No cloud sync configured';
+    if ($syncStatusStore === 'offline') return 'Offline — changes stay local';
+    if ($syncStatusStore === 'syncing') return 'Syncing…';
+    if ($syncStatusStore === 'error') return 'Sync error';
+    if ($syncStatusStore === 'online') return 'Synced across devices';
+    return 'Cloud sync';
   }
 </script>
 
@@ -92,7 +122,7 @@
     onclick={onBackdropClick}
     role="dialog"
     aria-modal="true"
-    aria-label="Sign in"
+    aria-label="Account"
   >
     <div
       class="w-full md:max-w-md bg-surface-light dark:bg-surface-dark rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto"
@@ -103,7 +133,11 @@
         <div class="md:hidden sheet-handle mb-3"></div>
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
-            {mode === 'login' ? 'Welcome back' : 'Create account'}
+            {#if $currentUserStore}
+              Account
+            {:else}
+              {mode === 'login' ? 'Welcome back' : 'Create account'}
+            {/if}
           </h2>
           <button
             type="button"
@@ -117,99 +151,136 @@
       </div>
 
       <div class="p-5 md:p-6 space-y-4">
-        {#if errorMsg}
-          <div class="px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-sm rounded-card border border-red-200 dark:border-red-800/40">
-            {errorMsg}
-          </div>
-        {/if}
-
-        <!-- Google login -->
-        <button
-          type="button"
-          onclick={handleGoogleLogin}
-          disabled={loading || !supabase}
-          class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-neutral-800 rounded-card border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" fill="#4285F4"/>
-            <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z" fill="#34A853"/>
-            <path d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z" fill="#FBBC05"/>
-            <path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" fill="#EA4335"/>
-          </svg>
-          Continue with Google
-        </button>
-
-        <div class="flex items-center gap-3">
-          <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
-          <span class="text-xs text-neutral-400 dark:text-neutral-500">or</span>
-          <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
-        </div>
-
-        <!-- Email / password form -->
-        <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
-          <div>
-            <label for="auth-email" class="block text-sm font-medium text-neutral-700 dark:text-neutral-200 mb-1">
-              Email
-            </label>
-            <input
-              id="auth-email"
-              type="email"
-              bind:value={email}
-              required
-              placeholder="you@example.com"
-              class="w-full px-4 py-2.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-card text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
-          <div>
-            <label for="auth-password" class="block text-sm font-medium text-neutral-700 dark:text-neutral-200 mb-1">
-              Password
-            </label>
-            <input
-              id="auth-password"
-              type="password"
-              bind:value={password}
-              required
-              placeholder="••••••••"
-              class="w-full px-4 py-2.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-card text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
-
-          {#if !supabase}
-            <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-card px-3 py-2">
-              ⚠️ Supabase is not configured. Add credentials in <code class="font-mono">.env</code> to enable cloud sync.
+        {#if $currentUserStore}
+          <!-- ==================== ACCOUNT SCREEN (signed in) ==================== -->
+          <div class="flex flex-col items-center py-4">
+            <span class="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold mb-3">
+              {($currentUserStore.email ?? '?').charAt(0).toUpperCase()}
+            </span>
+            <p class="text-base font-semibold text-neutral-800 dark:text-neutral-100 text-center break-all">
+              {$currentUserStore.email}
             </p>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1 flex items-center gap-1">
+              <Icon name={$syncStatusStore === 'syncing' ? 'refresh-cw' : $syncStatusStore === 'online' ? 'wifi' : $syncStatusStore === 'error' ? 'alert-circle' : 'cloud'} size={14} class={$syncStatusStore === 'syncing' ? 'animate-spin' : ''} />
+              {getSyncLabel()}
+            </p>
+          </div>
+
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800/50 text-xs text-neutral-500 dark:text-neutral-400 rounded-card border border-neutral-200 dark:border-neutral-700">
+            Your data is synced across devices using your account. Deleting a task here will also delete it on your other devices.
+          </div>
+
+          {#if errorMsg}
+            <div class="px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-sm rounded-card border border-red-200 dark:border-red-800/40">
+              {errorMsg}
+            </div>
           {/if}
 
           <button
-            type="submit"
+            type="button"
+            onclick={handleSignOut}
+            disabled={signingOut}
+            class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-card text-sm font-semibold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+          >
+            <Icon name="log-out" size={16} />
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button>
+        {:else}
+          <!-- ==================== LOGIN / SIGNUP SCREEN ==================== -->
+          {#if errorMsg}
+            <div class="px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-sm rounded-card border border-red-200 dark:border-red-800/40">
+              {errorMsg}
+            </div>
+          {/if}
+
+          <!-- Google login -->
+          <button
+            type="button"
+            onclick={handleGoogleLogin}
             disabled={loading || !supabase}
-            class="w-full px-4 py-3 bg-primary text-white rounded-card text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-neutral-800 rounded-card border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" fill="#4285F4"/>
+              <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z" fill="#34A853"/>
+              <path d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z" fill="#FBBC05"/>
+              <path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
           </button>
-        </form>
 
-        <div class="text-center">
-          <button
-            type="button"
-            onclick={switchMode}
-            class="text-sm text-primary hover:underline"
-          >
-            {mode === 'login'
-              ? "Don't have an account? Sign up"
-              : 'Already have an account? Sign in'}
-          </button>
-        </div>
+          <div class="flex items-center gap-3">
+            <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
+            <span class="text-xs text-neutral-400 dark:text-neutral-500">or</span>
+            <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-700"></div>
+          </div>
 
-        <div class="text-center">
-          <button
-            type="button"
-            onclick={closeAuthModal}
-            class="text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
-          >
-            Continue without account (local only)
-          </button>
-        </div>
+          <!-- Email / password form -->
+          <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-4">
+            <div>
+              <label for="auth-email" class="block text-sm font-medium text-neutral-700 dark:text-neutral-200 mb-1">
+                Email
+              </label>
+              <input
+                id="auth-email"
+                type="email"
+                bind:value={email}
+                required
+                placeholder="you@example.com"
+                class="w-full px-4 py-2.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-card text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div>
+              <label for="auth-password" class="block text-sm font-medium text-neutral-700 dark:text-neutral-200 mb-1">
+                Password
+              </label>
+              <input
+                id="auth-password"
+                type="password"
+                bind:value={password}
+                required
+                placeholder="••••••••"
+                class="w-full px-4 py-2.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-card text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            {#if !supabase}
+              <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-card px-3 py-2">
+                ⚠️ Supabase is not configured. Add credentials in <code class="font-mono">.env</code> to enable cloud sync.
+              </p>
+            {/if}
+
+            <button
+              type="submit"
+              disabled={loading || !supabase}
+              class="w-full px-4 py-3 bg-primary text-white rounded-card text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            </button>
+          </form>
+
+          <div class="text-center">
+            <button
+              type="button"
+              onclick={switchMode}
+              class="text-sm text-primary hover:underline"
+            >
+              {mode === 'login'
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
+            </button>
+          </div>
+
+          <div class="text-center">
+            <button
+              type="button"
+              onclick={closeAuthModal}
+              class="text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+            >
+              Continue without account (local only)
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

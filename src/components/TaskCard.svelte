@@ -50,6 +50,13 @@
   let swipeAction = $state<'none' | 'left' | 'right' | 'confirmed-left' | 'confirmed-right'>('none');
   let showSubtasks = $state(false);
 
+  // Some Android WebViews / Samsung Internet don't reliably fire pointer events
+  // during horizontal swipes (touch-action allows the browser to take over the
+  // gesture). We use native touch events on touch devices and fall back to
+  // pointer events on mouse/trackpad. `isTouchActive` prevents double-handling
+  // on devices that fire both event families.
+  let isTouchActive = $state(false);
+
   // Haptic feedback simulation: a brief CSS scale pulse when the task
   // transitions from not-done → done (checkbox tap or swipe-right).
   let isPulsing = $state(false);
@@ -69,51 +76,8 @@
 
   const tasksStore = store(tasks);
 
-  function onPointerDown(event: PointerEvent) {
-    if (compact) return;
-    if (event.target.closest('input, button, a, [data-no-swipe]')) return;
-    startX = event.clientX;
-    currentX = event.clientX;
-    isDragging = true;
-    isSwiping = false;
-    swipeAction = 'none';
-  }
-
-  function onPointerMove(event: PointerEvent) {
-    if (compact) return;
-    if (!isDragging) return;
-    currentX = event.clientX;
-    const delta = currentX - startX;
-
-    if (Math.abs(delta) > 8) {
-      isSwiping = true;
-    }
-
-    if (isSwiping) {
-      event.preventDefault();
-    }
-
-    if (delta < -swipeThreshold) {
-      swipeAction = 'confirmed-left';
-    } else if (delta > swipeThreshold) {
-      swipeAction = 'confirmed-right';
-    } else if (delta < 0) {
-      swipeAction = 'left';
-    } else if (delta > 0) {
-      swipeAction = 'right';
-    } else {
-      swipeAction = 'none';
-    }
-  }
-
-  function onPointerEnd() {
-    if (compact) return;
-    if (!isDragging) return;
-    isDragging = false;
-
-    if (!isSwiping) return;
-    isSwiping = false;
-
+  // Shared swipe logic (called from both pointer and touch end handlers)
+  function resolveSwipeAction(): void {
     if (swipeAction === 'confirmed-left') {
       deleteTask(task.id);
       swipeAction = 'none';
@@ -130,6 +94,99 @@
     }
 
     swipeAction = 'none';
+  }
+
+  // --- Pointer events (mouse / trackpad / modern touch browsers) ---
+  function onPointerDown(event: PointerEvent) {
+    if (compact) return;
+    if (isTouchActive) return; // touch handler already took over
+    if (event.target.closest('input, button, a, [data-no-swipe]')) return;
+    startX = event.clientX;
+    currentX = event.clientX;
+    isDragging = true;
+    isSwiping = false;
+    swipeAction = 'none';
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    if (compact) return;
+    if (isTouchActive) return; // touch handler already took over
+    if (!isDragging) return;
+    currentX = event.clientX;
+    updateSwipeState();
+  }
+
+  function onPointerEnd() {
+    if (compact) return;
+    if (isTouchActive) return;
+    if (!isDragging) return;
+    isDragging = false;
+
+    if (!isSwiping) return;
+    isSwiping = false;
+
+    resolveSwipeAction();
+  }
+
+  // --- Native touch events (Samsung Internet / Android WebView fallback) ---
+  function onTouchStart(event: TouchEvent) {
+    if (compact) return;
+    if (event.target.closest('input, button, a, [data-no-swipe]')) return;
+    isTouchActive = true;
+    const touch = event.touches[0];
+    if (!touch) return;
+    startX = touch.clientX;
+    currentX = touch.clientX;
+    isDragging = true;
+    isSwiping = false;
+    swipeAction = 'none';
+  }
+
+  function onTouchMove(event: TouchEvent) {
+    if (compact) return;
+    if (!isDragging) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    currentX = touch.clientX;
+    updateSwipeState();
+
+    // Prevent the browser from scrolling horizontally while swiping.
+    // Vertical scrolling remains allowed (touch-action: pan-y on the card).
+    if (isSwiping) {
+      event.preventDefault();
+    }
+  }
+
+  function onTouchEnd() {
+    if (compact) return;
+    isTouchActive = false;
+    if (!isDragging) return;
+    isDragging = false;
+
+    if (!isSwiping) return;
+    isSwiping = false;
+
+    resolveSwipeAction();
+  }
+
+  function updateSwipeState(): void {
+    const delta = currentX - startX;
+
+    if (Math.abs(delta) > 8) {
+      isSwiping = true;
+    }
+
+    if (delta < -swipeThreshold) {
+      swipeAction = 'confirmed-left';
+    } else if (delta > swipeThreshold) {
+      swipeAction = 'confirmed-right';
+    } else if (delta < 0) {
+      swipeAction = 'left';
+    } else if (delta > 0) {
+      swipeAction = 'right';
+    } else {
+      swipeAction = 'none';
+    }
   }
 
   function getSwipeStyle(): string {
@@ -240,12 +297,16 @@
   <!-- Task card -->
   <div
     class={`relative bg-white dark:bg-neutral-900 rounded-card shadow-card ${compact ? 'p-3' : 'p-4'} no-select cursor-pointer touch-manipulation ${isPulsing ? 'task-pulse' : ''} ${isOccurrenceDone ? 'opacity-60' : ''}`}
-    style={isDragging ? getLiveSwipeTransform() : getSwipeStyle()}
+    style={`touch-action: pan-y; ${isDragging ? getLiveSwipeTransform() : getSwipeStyle()}`}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerEnd}
     onpointercancel={onPointerEnd}
     onpointerleave={onPointerEnd}
+    ontouchstart={onTouchStart}
+    ontouchmove={onTouchMove}
+    ontouchend={onTouchEnd}
+    ontouchcancel={onTouchEnd}
     onclick={handleClick}
     role="button"
     tabindex="0"

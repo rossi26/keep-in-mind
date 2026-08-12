@@ -4,6 +4,7 @@ import type { List } from '../types';
 import { seedLists } from '../lib/seed';
 import { generateId } from '../lib/utils';
 import { tasks } from './tasks';
+import { markListDeleted, markTaskDeleted } from './tombstones';
 
 // Helper to parse JSON with fallback
 function parseLists(value: string): List[] {
@@ -66,8 +67,15 @@ export function updateListAppearance(
 
 /** Delete a list and its tasks */
 export function deleteList(id: string): void {
+  // Record tombstone so the deletion propagates remotely even
+  // when offline / not signed in at deletion time.
+  markListDeleted(id);
   lists.set(lists.get().filter((l) => l.id !== id));
-  // Also remove tasks belonging to the deleted list
+  // Also remove tasks belonging to the deleted list (each task also gets a tombstone)
+  const taskIds = tasks.get().filter((t) => t.listId === id).map((t) => t.id);
+  for (const taskId of taskIds) {
+    markTaskDeleted(taskId);
+  }
   tasks.set(tasks.get().filter((t) => t.listId !== id));
 }
 

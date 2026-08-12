@@ -66,7 +66,8 @@
   >
     <Icon name="log-in" size={18} class="text-primary" />
     <span class="flex-1 text-left">
-      <span class="block">Sign in to sync</span>
+      <span class="block">Not signed in</span>
+      <span class="block text-[11px] text-neutral-400 dark:text-neutral-500">Sign in to sync</span>
       <span class={`block flex items-center gap-1 ${getStatusColor($syncStatusStore, $syncEnabledStore)}`}>
         <Icon name={getStatusIcon($syncStatusStore, $syncEnabledStore)} size={12} class={$syncStatusStore === 'syncing' ? 'animate-spin' : ''} />
         <span class="text-[11px]">{getStatusLabel($syncStatusStore, $syncEnabledStore)}</span>

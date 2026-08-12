@@ -15,10 +15,12 @@ export interface Task {
   notes?: string;
   listId: string;
   status: TaskStatus;
-  dueDate: string | null; // ISO format
+  dueDate: string | null; // ISO format (may include time)
   isRecurring: boolean;
   recurringInterval: RecurringInterval;
   boomerangDays: number | null;
+  /** Reschedule to today after N days overdue (in addition to boomerangDays) */
+  boomerangHours?: number | null;
   subtasks: Subtask[];
   createdAt: string; // ISO format
   order: number;

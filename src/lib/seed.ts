@@ -42,6 +42,7 @@ export const seedTasks: Task[] = [
     isRecurring: true,
     recurringInterval: 'weekly',
     boomerangDays: 2,
+    boomerangHours: null,
     subtasks: [
       { id: 'sub-1-1', title: 'Milk', done: false, order: 0 },
       { id: 'sub-1-2', title: 'Eggs', done: false, order: 1 },
@@ -61,6 +62,7 @@ export const seedTasks: Task[] = [
     isRecurring: false,
     recurringInterval: null,
     boomerangDays: null,
+    boomerangHours: null,
     subtasks: [],
     createdAt: isoDaysFromNow(-3),
     order: 1,
@@ -75,6 +77,7 @@ export const seedTasks: Task[] = [
     isRecurring: false,
     recurringInterval: null,
     boomerangDays: 3,
+    boomerangHours: null,
     subtasks: [
       { id: 'sub-3-1', title: 'Talk about weekend plans', done: false, order: 0 },
     ],
@@ -91,6 +94,7 @@ export const seedTasks: Task[] = [
     isRecurring: false,
     recurringInterval: null,
     boomerangDays: 2,
+    boomerangHours: null,
     subtasks: [],
     createdAt: isoDaysFromNow(-10),
     order: 3,
@@ -105,6 +109,7 @@ export const seedTasks: Task[] = [
     isRecurring: true,
     recurringInterval: 'daily',
     boomerangDays: null,
+    boomerangHours: null,
     subtasks: [
       { id: 'sub-5-1', title: 'Living room', done: true, order: 0 },
       { id: 'sub-5-2', title: 'Bedroom', done: true, order: 1 },
@@ -123,6 +128,7 @@ export const seedTasks: Task[] = [
     isRecurring: false,
     recurringInterval: null,
     boomerangDays: null,
+    boomerangHours: null,
     subtasks: [
       { id: 'sub-6-1', title: 'Chapter 5', done: true, order: 0 },
       { id: 'sub-6-2', title: 'Chapter 6', done: false, order: 1 },

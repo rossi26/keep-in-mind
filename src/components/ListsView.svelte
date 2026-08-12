@@ -1,15 +1,19 @@
 <script lang="ts">
   import { store } from '../lib/svelteStore';
-  import { sortedLists, createList, deleteList } from '../stores/lists';
+  import { sortedLists, createList, deleteList, renameList, updateListAppearance } from '../stores/lists';
   import { tasks } from '../stores/tasks';
   import { activeListId, addToast } from '../stores/ui';
   import Icon from './Icon.svelte';
+  import type { List } from '../types';
 
   const listsStore = store(sortedLists);
   const tasksStore = store(tasks);
 
-  // List creation modal state
+  // List creation/edit modal state
   let showCreateModal = $state(false);
+  let editingList = $state<List | null>(null);
+  let listModalTitle = $state('New List');
+  let listModalButton = $state('Create List');
   let newListName = $state('');
   let selectedColor = $state('#01696f');
   let selectedIcon = $state('list-todo');
@@ -28,21 +32,42 @@
   }
 
   function openCreateModal(): void {
+    editingList = null;
     newListName = '';
     selectedColor = '#01696f';
     selectedIcon = 'list-todo';
+    listModalTitle = 'New List';
+    listModalButton = 'Create List';
+    showCreateModal = true;
+  }
+
+  function openEditModal(list: List): void {
+    editingList = list;
+    newListName = list.name;
+    selectedColor = list.color;
+    selectedIcon = list.icon;
+    listModalTitle = 'Edit List';
+    listModalButton = 'Save Changes';
     showCreateModal = true;
   }
 
   function closeCreateModal(): void {
     showCreateModal = false;
+    editingList = null;
   }
 
-  function saveNewList(): void {
+  function saveList(): void {
     const name = newListName.trim();
     if (!name) return;
-    createList(name, selectedColor, selectedIcon);
-    addToast('List created', 'success');
+
+    if (editingList) {
+      renameList(editingList.id, name);
+      updateListAppearance(editingList.id, selectedColor, selectedIcon);
+      addToast('List updated', 'success');
+    } else {
+      createList(name, selectedColor, selectedIcon);
+      addToast('List created', 'success');
+    }
     closeCreateModal();
   }
 
@@ -90,15 +115,28 @@
         <!-- Color accent top bar -->
         <div class="absolute top-0 left-0 right-0 h-1 rounded-t-card" style={`background-color: ${list.color}`}></div>
 
-        <!-- Delete button -->
-        <button
-          type="button"
-          onclick={(e) => handleDeleteList(e, list.id)}
-          class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-red-500"
-          aria-label={`Delete ${list.name}`}
-        >
-          <Icon name="trash-2" size={14} />
-        </button>
+        <!-- Action buttons (visible on hover/always on mobile) -->
+        <div class="absolute top-3 right-3 flex items-center gap-1">
+          <button
+            type="button"
+            onclick={(e) => {
+              e.stopPropagation();
+              openEditModal(list);
+            }}
+            class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-primary hover:bg-primary/10 flex items-center justify-center"
+            aria-label={`Edit ${list.name}`}
+          >
+            <Icon name="pencil" size={13} />
+          </button>
+          <button
+            type="button"
+            onclick={(e) => handleDeleteList(e, list.id)}
+            class="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center"
+            aria-label={`Delete ${list.name}`}
+          >
+            <Icon name="trash-2" size={13} />
+          </button>
+        </div>
 
         <!-- Icon -->
         <div
@@ -109,7 +147,7 @@
         </div>
 
         <!-- Name -->
-        <h3 class="font-semibold text-neutral-800 dark:text-neutral-100 text-sm md:text-base leading-snug">{list.name}</h3>
+        <h3 class="font-semibold text-neutral-800 dark:text-neutral-100 text-sm md:text-base leading-snug pr-6">{list.name}</h3>
 
         <!-- Task count badge -->
         <div class="flex items-center gap-1.5 mt-2">
@@ -140,7 +178,7 @@
   </div>
 </div>
 
-<!-- Create List Modal -->
+<!-- Create/Edit List Modal -->
 {#if showCreateModal}
   <!-- Backdrop -->
   <div
@@ -158,7 +196,7 @@
   >
     <div class="px-5 py-5 max-h-[80vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">New List</h2>
+        <h2 class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">{listModalTitle}</h2>
         <button
           type="button"
           onclick={closeCreateModal}
@@ -182,7 +220,7 @@
         onkeydown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            saveNewList();
+            saveList();
           }
         }}
       />
@@ -241,10 +279,10 @@
       <!-- Save -->
       <button
         type="button"
-        onclick={saveNewList}
+        onclick={saveList}
         class="w-full py-3 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary-dark transition-colors"
       >
-        Create List
+        {listModalButton}
       </button>
     </div>
   </div>

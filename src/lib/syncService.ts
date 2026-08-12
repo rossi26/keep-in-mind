@@ -3,6 +3,14 @@ import { supabase, isConfigured } from './supabase';
 import { tasks } from '../stores/tasks';
 import { lists } from '../stores/lists';
 import {
+  deletedTaskIds,
+  deletedListIds,
+  clearTaskDeleted,
+  clearListDeleted,
+  isTaskDeleted,
+  isListDeleted,
+} from '../stores/tombstones';
+import {
   currentUser,
   setSyncStatus,
   setSyncEnabled,
@@ -116,6 +124,7 @@ interface TaskRow {
   is_recurring: boolean;
   recurring_interval: 'daily' | 'weekly' | 'monthly' | null;
   boomerang_days: number | null;
+  boomerang_hours: number | null;
   subtasks: unknown;
   completed_dates: unknown;
   position: number;
@@ -147,6 +156,7 @@ function taskToRow(task: Task, userId: string, updatedAt: string): Record<string
     is_recurring: task.isRecurring,
     recurring_interval: task.recurringInterval,
     boomerang_days: task.boomerangDays,
+    boomerang_hours: task.boomerangHours ?? null,
     subtasks: task.subtasks,
     completed_dates: task.completedDates ?? [],
     position: task.order,
@@ -177,6 +187,7 @@ function rowToTask(row: TaskRow): Task {
     isRecurring: row.is_recurring,
     recurringInterval: row.recurring_interval,
     boomerangDays: row.boomerang_days,
+    boomerangHours: row.boomerang_hours ?? null,
     subtasks: Array.isArray(row.subtasks) ? (row.subtasks as Task['subtasks']) : [],
     createdAt: row.created_at,
     order: row.position,
@@ -265,12 +276,12 @@ async function pullAll(): Promise<void> {
 
     applyingRemote = true;
 
-    const remoteLists: List[] = (listRows ?? []).map((row) =>
-      rowToList(row as ListRow)
-    );
-    const remoteTasks: Task[] = (taskRows ?? []).map((row) =>
-      rowToTask(row as TaskRow)
-    );
+    const remoteLists: List[] = (listRows ?? [])
+      .map((row) => rowToList(row as ListRow))
+      .filter((l) => !isListDeleted(l.id));
+    const remoteTasks: Task[] = (taskRows ?? [])
+      .map((row) => rowToTask(row as TaskRow))
+      .filter((t) => !isTaskDeleted(t.id));
 
     // Merge strategy (Last-Write-Wins):
     // For each remote record, compare updatedAt with local meta.
@@ -285,20 +296,21 @@ async function pullAll(): Promise<void> {
     const remoteListMap = new Map(remoteLists.map((l) => [l.id, l]));
 
     const mergedLists: List[] = [];
+    const remoteListRowsById = new Map(
+      (listRows ?? []).map((row) => [(row as ListRow).client_id, row as ListRow])
+    );
     for (const remoteList of remoteLists) {
+      const row = remoteListRowsById.get(remoteList.id);
+      const rowUpdatedAt = row?.updated_at ?? '';
       const localList = localListMap.get(remoteList.id);
-      const remoteUpdated = getMeta(remoteList.id) ?? '';
-      const localUpdated = localList ? getMeta(localList.id) ?? '' : '';
+      const localMeta = getMeta(remoteList.id) ?? '';
 
-      if (!localList) {
-        // New remote list (never seen locally)
-        mergedLists.push(remoteList);
-      } else if (remoteUpdated > localUpdated) {
-        // Remote is newer — apply remote
-        mergedLists.push(remoteList);
-      } else {
-        // Local is newer or equal — keep local
+      // Local record exists and local meta >= server updated_at → keep local
+      if (localList && localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) {
         mergedLists.push(localList);
+      } else {
+        // Remote is newer, or no local record, or no local meta → apply remote
+        mergedLists.push(remoteList);
       }
     }
     // Add local-only lists (not on remote yet)
@@ -315,17 +327,21 @@ async function pullAll(): Promise<void> {
     const remoteTaskMap = new Map(remoteTasks.map((t) => [t.id, t]));
 
     const mergedTasks: Task[] = [];
+    const remoteTaskRowsById = new Map(
+      (taskRows ?? []).map((row) => [(row as TaskRow).client_id, row as TaskRow])
+    );
     for (const remoteTask of remoteTasks) {
+      const row = remoteTaskRowsById.get(remoteTask.id);
+      const rowUpdatedAt = row?.updated_at ?? '';
       const localTask = localTaskMap.get(remoteTask.id);
-      const remoteUpdated = getMeta(remoteTask.id) ?? '';
-      const localUpdated = localTask ? getMeta(localTask.id) ?? '' : '';
+      const localMeta = getMeta(remoteTask.id) ?? '';
 
-      if (!localTask) {
-        mergedTasks.push(remoteTask);
-      } else if (remoteUpdated > localUpdated) {
-        mergedTasks.push(remoteTask);
-      } else {
+      // Local record exists and local meta >= server updated_at → keep local
+      if (localTask && localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) {
         mergedTasks.push(localTask);
+      } else {
+        // Remote is newer, or no local record, or no local meta → apply remote
+        mergedTasks.push(remoteTask);
       }
     }
     for (const localTask of localTasks) {
@@ -346,6 +362,18 @@ async function pullAll(): Promise<void> {
       meta[r.client_id] = r.updated_at;
     }
     saveMeta();
+
+    // Propagate deletions recorded locally while offline / not signed in
+    const listTombstones = deletedListIds.get();
+    for (const id of listTombstones) {
+      await supabase.from('lists').delete().eq('client_id', id).eq('user_id', userId);
+      clearListDeleted(id);
+    }
+    const taskTombstones = deletedTaskIds.get();
+    for (const id of taskTombstones) {
+      await supabase.from('tasks').delete().eq('client_id', id).eq('user_id', userId);
+      clearTaskDeleted(id);
+    }
 
     setSyncStatus('online');
     setSyncReady(true);
@@ -382,6 +410,7 @@ async function flushQueue(): Promise<void> {
         );
       } else if (op.type === 'delete-task') {
         await supabase.from('tasks').delete().eq('client_id', op.id).eq('user_id', userId);
+        clearTaskDeleted(op.id);
       } else if (op.type === 'upsert-list') {
         await supabase.from('lists').upsert(
           { ...listToRow(op.list, userId, op.updatedAt), id: undefined },
@@ -389,6 +418,7 @@ async function flushQueue(): Promise<void> {
         );
       } else if (op.type === 'delete-list') {
         await supabase.from('lists').delete().eq('client_id', op.id).eq('user_id', userId);
+        clearListDeleted(op.id);
       }
     }
     setSyncStatus(isOnline ? 'online' : 'offline');
@@ -542,8 +572,10 @@ async function handleRemoteChange(
     try {
       if (table === 'tasks') {
         tasks.set(tasks.get().filter((t) => t.id !== oldRow.client_id));
+        clearTaskDeleted(oldRow.client_id);
       } else {
         lists.set(lists.get().filter((l) => l.id !== oldRow.client_id));
+        clearListDeleted(oldRow.client_id);
       }
     } finally {
       applyingRemote = false;
@@ -720,6 +752,19 @@ let pushDebounceLists: ReturnType<typeof setTimeout> | null = null;
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+/** Sign out the current user (local data is preserved). */
+export async function signOut(): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.auth.signOut();
+    // The auth state change listener will clear currentUser,
+    // remove the realtime channel, and reset sync status.
+  } catch (err) {
+    console.error('[sync] signOut failed:', err);
+    throw new Error('Failed to sign out');
+  }
+}
+
 export function initSync(): void {
   loadQueue();
   setSyncEnabled(isConfigured);

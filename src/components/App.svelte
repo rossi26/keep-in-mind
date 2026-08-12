@@ -46,7 +46,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="md:pl-56 min-h-screen">
+    <div class="md:pl-60 min-h-screen">
       <main class="pb-24 md:pb-8 pt-4 md:pt-6">
         {#if $currentViewStore === 'lists'}
           {#if $activeListIdStore}

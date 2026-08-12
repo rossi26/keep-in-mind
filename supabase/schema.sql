@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   is_recurring boolean NOT NULL DEFAULT false,
   recurring_interval text CHECK (recurring_interval IN ('daily', 'weekly', 'monthly')),
   boomerang_days integer,
+  boomerang_hours integer,
   subtasks jsonb NOT NULL DEFAULT '[]'::jsonb,
   completed_dates jsonb NOT NULL DEFAULT '[]'::jsonb,
   position integer NOT NULL DEFAULT 0,
