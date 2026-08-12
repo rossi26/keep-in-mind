@@ -251,9 +251,13 @@ async function setupAuth(): Promise<void> {
 // Remote operations
 // ---------------------------------------------------------------------------
 async function pullAll(): Promise<void> {
-  if (!supabase || applyingRemote || !currentUser.get()) return;
+  if (!supabase || applyingRemote || !currentUser.get()) {
+    console.log('[sync] pullAll skipped:', { supabase: !!supabase, applyingRemote, user: !!currentUser.get() });
+    return;
+  }
 
   const userId = currentUser.get()!.id;
+  console.log('[sync] pullAll starting for user:', userId);
   setSyncStatus('syncing');
   setSyncReady(false);
 
@@ -273,6 +277,8 @@ async function pullAll(): Promise<void> {
       .eq('user_id', userId);
 
     if (tasksErr) throw tasksErr;
+
+    console.log('[sync] pullAll data received:', { lists: listRows?.length, tasks: taskRows?.length });
 
     applyingRemote = true;
 
@@ -563,6 +569,7 @@ async function handleRemoteChange(
   table: 'tasks' | 'lists',
   payload: RealtimePayload
 ): Promise<void> {
+  console.log('[sync] handleRemoteChange:', table, payload.eventType);
   if (!supabase || applyingRemote || !currentUser.get()) return;
 
   if (payload.eventType === 'DELETE') {

@@ -44,7 +44,7 @@
 <button
   onclick={openAuthModal}
   style="top: max(env(safe-area-inset-top), 1rem)"
-  class="md:hidden fixed right-16 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
+  class="md:hidden fixed right-16 z-60 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
   aria-label="Account and sync"
 >
   {#if $currentUserStore}
@@ -60,7 +60,7 @@
 <button
   onclick={openSettings}
   style="top: max(env(safe-area-inset-top), 1rem)"
-  class="md:hidden fixed right-4 z-40 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
+  class="md:hidden fixed right-4 z-60 w-10 h-10 rounded-full bg-white dark:bg-neutral-800 shadow-card flex items-center justify-center text-neutral-600 dark:text-neutral-300"
   aria-label="Open settings"
 >
   <Icon name="settings" size={18} />

@@ -179,7 +179,7 @@
 
   <!-- Bottom sheet -->
   <div
-    class="fixed bottom-0 inset-x-0 z-50 mx-auto max-w-lg bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl safe-bottom"
+    class="fixed bottom-0 inset-x-0 z-50 mx-auto max-w-lg bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl safe-bottom overflow-x-hidden"
     style={`transform: translateY(${dragOffset}px); transition: ${isDragging ? 'none' : 'transform 0.3s ease-out'};`}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}

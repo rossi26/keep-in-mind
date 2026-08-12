@@ -80,7 +80,7 @@
   }
 </script>
 
-<div class="safe-area-header px-4 md:px-8 pb-4 md:pb-8 max-w-5xl mx-auto w-full relative z-10">
+<div class="safe-area-header px-4 md:px-8 pb-4 md:pb-8 max-w-5xl mx-auto w-full relative z-50">
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <div>
