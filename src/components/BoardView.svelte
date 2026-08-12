@@ -18,7 +18,7 @@
   ];
 
   // Mobile accordion state
-  let expandedColumn = $state<TaskStatus>('todo');
+  let expandedColumn = $state<TaskStatus | null>('todo');
 
   // Sortable instances keyed by status
   let sortables = new Map<TaskStatus, Sortable>();
@@ -147,12 +147,12 @@
 
 <div bind:this={rootEl} class="px-4 md:px-6">
   <!-- Header -->
-  <div class="flex items-center justify-between mb-4">
-    <h1 class="text-xl font-semibold text-neutral-800 dark:text-neutral-100">Board</h1>
-    <span class="text-sm text-neutral-500 dark:text-neutral-400">
-      {getTaskCount('todo') + getTaskCount('later') + getTaskCount('done')} tasks
-    </span>
-  </div>
+  <div class="safe-area-header px-4 md:px-6 flex items-center justify-between mb-4">
+      <h1 class="text-xl font-semibold text-neutral-800 dark:text-neutral-100">Board</h1>
+      <span class="text-sm text-neutral-500 dark:text-neutral-400">
+        {getTaskCount('todo') + getTaskCount('later') + getTaskCount('done')} tasks
+      </span>
+    </div>
 
   <!-- Desktop: 3 columns side by side -->
   <div class="hidden md:grid md:grid-cols-3 gap-4 items-start">

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { store } from '../lib/svelteStore';
-  import { taskSheetOpen, taskSheetMode, taskSheetTask, taskSheetListId, closeTaskSheet, addToast, defaultBoomerangDays } from '../stores/ui';
+  import { taskSheetOpen, taskSheetMode, taskSheetTask, closeTaskSheet, addToast, defaultBoomerangDays } from '../stores/ui';
   import { sortedLists } from '../stores/lists';
-  import { tasks, createTask, updateTask, deleteTask } from '../stores/tasks';
+  import { tasks, createTask, updateTask } from '../stores/tasks';
   import { generateId, dateInputToISO, isoToDateInput } from '../lib/utils';
   import type { TaskStatus, RecurringInterval } from '../types';
   import Icon from './Icon.svelte';
@@ -10,7 +10,6 @@
   const taskSheetOpenStore = store(taskSheetOpen);
   const taskSheetModeStore = store(taskSheetMode);
   const taskSheetTaskStore = store(taskSheetTask);
-  const taskSheetListIdStore = store(taskSheetListId);
   const listsStore = store(sortedLists);
   const defaultBoomerangStore = store(defaultBoomerangDays);
 
@@ -23,8 +22,6 @@
   let isRecurring = $state(false);
   let recurringInterval = $state<RecurringInterval>('daily');
   let boomerangDays = $state<number | null>(null);
-  let boomerangHours = $state<number | null>(null);
-  let boomerangUnit = $state<'days' | 'hours'>('days');
   let subtasks = $state<{ id: string; title: string; done: boolean }[]>([]);
   let newSubtaskTitle = $state('');
   let startY = $state(0);
@@ -37,11 +34,6 @@
   // Reset form when sheet opens
   $effect(() => {
     if ($taskSheetOpenStore) {
-      // Prevent background scroll
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      
       const task = $taskSheetTaskStore;
       if (task) {
         title = task.title;
@@ -51,41 +43,31 @@
         isRecurring = task.isRecurring;
         recurringInterval = task.recurringInterval ?? 'daily';
         boomerangDays = task.boomerangDays;
-        boomerangHours = task.boomerangHours ?? null;
-        boomerangUnit = task.boomerangHours !== null && task.boomerangHours !== undefined ? 'hours' : 'days';
-        boomerangEnabled = task.boomerangDays !== null || (task.boomerangHours !== null && task.boomerangHours !== undefined);
+        boomerangEnabled = task.boomerangDays !== null;
         subtasks = task.subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done }));
       } else {
         title = '';
         notes = '';
-        listId = $taskSheetListIdStore ?? $listsStore[0]?.id ?? '';
+        listId = $listsStore[0]?.id ?? '';
         status = 'todo';
         dueDate = '';
         isRecurring = false;
         recurringInterval = 'daily';
         boomerangDays = null;
-        boomerangHours = null;
-        boomerangUnit = 'days';
         boomerangEnabled = false;
         subtasks = [];
         // Pre-fill boomerang with the global default (0 = off)
-        if ($defaultBoomerangStore > 0) {
+        if (defaultBoomerangStore.value > 0) {
           boomerangEnabled = true;
-          boomerangDays = $defaultBoomerangStore;
+          boomerangDays = defaultBoomerangStore.value;
         }
       }
-    } else {
-      // Restore background scroll
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
     }
   });
 
   // Swipe down to dismiss
   function onPointerDown(event: PointerEvent) {
-    const target = event.target as HTMLElement;
-    if (target?.closest('input, button, select, textarea')) return;
+    if (event.target.closest('input, button, select, textarea')) return;
     startY = event.clientY;
     dragOffset = 0;
     isDragging = true;
@@ -123,22 +105,8 @@
     boomerangEnabled = !boomerangEnabled;
     if (!boomerangEnabled) {
       boomerangDays = null;
-      boomerangHours = null;
-    } else if (boomerangDays === null && boomerangHours === null) {
-      if (boomerangUnit === 'hours') {
-        boomerangHours = 24;
-      } else {
-        boomerangDays = $defaultBoomerangStore > 0 ? $defaultBoomerangStore : 3;
-      }
-    }
-  }
-
-  function deleteCurrentTask() {
-    if (!$taskSheetTaskStore) return;
-    if (confirm('Delete this task?')) {
-      deleteTask($taskSheetTaskStore.id);
-      addToast('Task deleted');
-      closeTaskSheet();
+    } else if (boomerangDays === null) {
+      boomerangDays = defaultBoomerangStore.value > 0 ? defaultBoomerangStore.value : 3;
     }
   }
 
@@ -153,8 +121,7 @@
       dueDate: dateInputToISO(dueDate || null),
       isRecurring,
       recurringInterval: isRecurring ? recurringInterval : null,
-      boomerangDays: boomerangEnabled && boomerangUnit === 'days' ? boomerangDays : null,
-      boomerangHours: boomerangEnabled && boomerangUnit === 'hours' ? boomerangHours : null,
+      boomerangDays: boomerangEnabled ? boomerangDays : null,
       subtasks: subtasks.map((s, i) => ({
         id: s.id,
         title: s.title,
@@ -190,7 +157,7 @@
 
   <!-- Bottom sheet -->
   <div
-    class="fixed bottom-0 inset-x-0 z-50 mx-auto max-w-lg bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl safe-bottom overflow-x-hidden"
+    class="fixed bottom-0 inset-x-0 z-50 mx-auto max-w-lg bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl safe-bottom"
     style={`transform: translateY(${dragOffset}px); transition: ${isDragging ? 'none' : 'transform 0.3s ease-out'};`}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
@@ -235,7 +202,7 @@
               onclick={() => (listId = list.id)}
               class={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 listId === list.id
-                  ? 'text-white shadow-md'
+                  ? 'text-white'
                   : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
               }`}
               style={listId === list.id ? `background-color: ${list.color}` : ''}
@@ -246,12 +213,12 @@
         </div>
       </div>
 
-      <!-- Due date & time -->
+      <!-- Due date -->
       <div class="mb-3">
-        <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block" for="task-due">Due Date & Time</label>
+        <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5 block" for="task-due">Due Date</label>
         <input
           id="task-due"
-          type="datetime-local"
+          type="date"
           bind:value={dueDate}
           class="w-full px-4 py-2.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
@@ -268,7 +235,7 @@
             {#each ['daily', 'weekly', 'monthly'] as interval}
               <button
                 type="button"
-                onclick={() => (recurringInterval = interval as RecurringInterval)}
+                onclick={() => (recurringInterval = interval)}
                 class={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   recurringInterval === interval
                     ? 'bg-primary text-white'
@@ -289,54 +256,15 @@
           🪃 Boomerang
         </label>
         {#if boomerangEnabled}
-          <div class="mt-2 space-y-2">
-            <!-- Unit selector -->
-            <div class="flex gap-2">
-              <button
-                type="button"
-                onclick={() => { boomerangUnit = 'days'; if (boomerangDays === null) boomerangDays = 3; }}
-                class={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  boomerangUnit === 'days'
-                    ? 'bg-primary text-white'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
-                }`}
-              >
-                Days
-              </button>
-              <button
-                type="button"
-                onclick={() => { boomerangUnit = 'hours'; if (boomerangHours === null) boomerangHours = 24; }}
-                class={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  boomerangUnit === 'hours'
-                    ? 'bg-primary text-white'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
-                }`}
-              >
-                Hours
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2">
-              {#if boomerangUnit === 'days'}
-                <input
-                  type="number"
-                  min="1"
-                  max="30"
-                  bind:value={boomerangDays}
-                  class="w-20 px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span class="text-xs text-neutral-500 dark:text-neutral-400">days</span>
-              {:else}
-                <input
-                  type="number"
-                  min="1"
-                  max="720"
-                  bind:value={boomerangHours}
-                  class="w-20 px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span class="text-xs text-neutral-500 dark:text-neutral-400">hours</span>
-              {/if}
-            </div>
+          <div class="flex items-center gap-2 mt-2">
+            <input
+              type="number"
+              min="1"
+              max="30"
+              bind:value={boomerangDays}
+              class="w-20 px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <span class="text-xs text-neutral-500 dark:text-neutral-400">days</span>
           </div>
         {/if}
       </div>
@@ -405,7 +333,7 @@
             </div>
           {/each}
         </div>
-        <div class="flex flex-col sm:flex-row gap-2">
+        <div class="flex gap-2">
           <input
             type="text"
             bind:value={newSubtaskTitle}
@@ -421,23 +349,12 @@
           <button
             type="button"
             onclick={addSubtask}
-            class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium w-full sm:w-auto"
+            class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium"
           >
             Add
           </button>
         </div>
       </div>
-
-      <!-- Delete button (edit mode only) -->
-      {#if $taskSheetModeStore === 'edit'}
-        <button
-          type="button"
-          onclick={deleteCurrentTask}
-          class="w-full py-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors mb-2"
-        >
-          Delete Task
-        </button>
-      {/if}
 
       <!-- Save button -->
       <button

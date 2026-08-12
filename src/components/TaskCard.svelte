@@ -100,7 +100,8 @@
   function onPointerDown(event: PointerEvent) {
     if (compact) return;
     if (isTouchActive) return; // touch handler already took over
-    if (event.target.closest('input, button, a, [data-no-swipe]')) return;
+    const target = event.target as HTMLElement;
+    if (target?.closest('input, button, a, [data-no-swipe]')) return;
     startX = event.clientX;
     currentX = event.clientX;
     isDragging = true;
@@ -131,7 +132,8 @@
   // --- Native touch events (Samsung Internet / Android WebView fallback) ---
   function onTouchStart(event: TouchEvent) {
     if (compact) return;
-    if (event.target.closest('input, button, a, [data-no-swipe]')) return;
+    const target = event.target as HTMLElement;
+    if (target?.closest('input, button, a, [data-no-swipe]')) return;
     isTouchActive = true;
     const touch = event.touches[0];
     if (!touch) return;

@@ -229,7 +229,7 @@
   }
 </script>
 
-<div class="p-4 md:p-8 max-w-5xl mx-auto w-full">
+<div class="safe-area-header p-4 md:p-8 max-w-5xl mx-auto w-full">
   <!-- Header -->
   <div class="flex items-center justify-between mb-4">
     <div>

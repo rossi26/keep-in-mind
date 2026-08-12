@@ -62,7 +62,7 @@
 
     if (editingList) {
       renameList(editingList.id, name);
-      updateListAppearance(editingList.id, selectedColor, selectedIcon);
+      updateListAppearance(editingList.id, { color: selectedColor, icon: selectedIcon });
       addToast('List updated', 'success');
     } else {
       createList(name, selectedColor, selectedIcon);
@@ -80,7 +80,7 @@
   }
 </script>
 
-<div class="safe-area-header px-4 md:px-8 pb-4 md:pb-8 max-w-5xl mx-auto w-full relative z-50">
+<div class="safe-area-header px-4 md:px-8 pb-4 md:pb-8 max-w-5xl mx-auto w-full relative">
   <!-- Header -->
   <div class="mb-6">
     <h1 class="text-2xl font-bold text-neutral-800 dark:text-neutral-100">Lists</h1>

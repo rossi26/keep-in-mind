@@ -3,14 +3,6 @@ import { supabase, isConfigured } from './supabase';
 import { tasks } from '../stores/tasks';
 import { lists } from '../stores/lists';
 import {
-  deletedTaskIds,
-  deletedListIds,
-  clearTaskDeleted,
-  clearListDeleted,
-  isTaskDeleted,
-  isListDeleted,
-} from '../stores/tombstones';
-import {
   currentUser,
   setSyncStatus,
   setSyncEnabled,
@@ -76,10 +68,6 @@ type PendingOp =
 const QUEUE_KEY = 'kmm-sync-queue';
 let pendingQueue: PendingOp[] = [];
 
-// Track previous local ids so we can detect deletions and propagate them remotely
-let lastTaskIds = new Set<string>();
-let lastListIds = new Set<string>();
-
 function loadQueue(): void {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
@@ -124,7 +112,6 @@ interface TaskRow {
   is_recurring: boolean;
   recurring_interval: 'daily' | 'weekly' | 'monthly' | null;
   boomerang_days: number | null;
-  boomerang_hours: number | null;
   subtasks: unknown;
   completed_dates: unknown;
   position: number;
@@ -156,7 +143,6 @@ function taskToRow(task: Task, userId: string, updatedAt: string): Record<string
     is_recurring: task.isRecurring,
     recurring_interval: task.recurringInterval,
     boomerang_days: task.boomerangDays,
-    boomerang_hours: task.boomerangHours ?? null,
     subtasks: task.subtasks,
     completed_dates: task.completedDates ?? [],
     position: task.order,
@@ -187,7 +173,6 @@ function rowToTask(row: TaskRow): Task {
     isRecurring: row.is_recurring,
     recurringInterval: row.recurring_interval,
     boomerangDays: row.boomerang_days,
-    boomerangHours: row.boomerang_hours ?? null,
     subtasks: Array.isArray(row.subtasks) ? (row.subtasks as Task['subtasks']) : [],
     createdAt: row.created_at,
     order: row.position,
@@ -251,13 +236,9 @@ async function setupAuth(): Promise<void> {
 // Remote operations
 // ---------------------------------------------------------------------------
 async function pullAll(): Promise<void> {
-  if (!supabase || applyingRemote || !currentUser.get()) {
-    console.log('[sync] pullAll skipped:', { supabase: !!supabase, applyingRemote, user: !!currentUser.get() });
-    return;
-  }
+  if (!supabase || applyingRemote || !currentUser.get()) return;
 
   const userId = currentUser.get()!.id;
-  console.log('[sync] pullAll starting for user:', userId);
   setSyncStatus('syncing');
   setSyncReady(false);
 
@@ -277,8 +258,6 @@ async function pullAll(): Promise<void> {
       .eq('user_id', userId);
 
     if (tasksErr) throw tasksErr;
-
-    console.log('[sync] pullAll data received:', { lists: listRows?.length, tasks: taskRows?.length });
 
     applyingRemote = true;
 
@@ -302,21 +281,20 @@ async function pullAll(): Promise<void> {
     const remoteListMap = new Map(remoteLists.map((l) => [l.id, l]));
 
     const mergedLists: List[] = [];
-    const remoteListRowsById = new Map(
-      (listRows ?? []).map((row) => [(row as ListRow).client_id, row as ListRow])
-    );
     for (const remoteList of remoteLists) {
-      const row = remoteListRowsById.get(remoteList.id);
-      const rowUpdatedAt = row?.updated_at ?? '';
       const localList = localListMap.get(remoteList.id);
-      const localMeta = getMeta(remoteList.id) ?? '';
+      const remoteUpdated = getMeta(remoteList.id) ?? '';
+      const localUpdated = localList ? getMeta(localList.id) ?? '' : '';
 
-      // Local record exists and local meta >= server updated_at → keep local
-      if (localList && localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) {
-        mergedLists.push(localList);
-      } else {
-        // Remote is newer, or no local record, or no local meta → apply remote
+      if (!localList) {
+        // New remote list (never seen locally)
         mergedLists.push(remoteList);
+      } else if (remoteUpdated > localUpdated) {
+        // Remote is newer — apply remote
+        mergedLists.push(remoteList);
+      } else {
+        // Local is newer or equal — keep local
+        mergedLists.push(localList);
       }
     }
     // Add local-only lists (not on remote yet)
@@ -333,21 +311,17 @@ async function pullAll(): Promise<void> {
     const remoteTaskMap = new Map(remoteTasks.map((t) => [t.id, t]));
 
     const mergedTasks: Task[] = [];
-    const remoteTaskRowsById = new Map(
-      (taskRows ?? []).map((row) => [(row as TaskRow).client_id, row as TaskRow])
-    );
     for (const remoteTask of remoteTasks) {
-      const row = remoteTaskRowsById.get(remoteTask.id);
-      const rowUpdatedAt = row?.updated_at ?? '';
       const localTask = localTaskMap.get(remoteTask.id);
-      const localMeta = getMeta(remoteTask.id) ?? '';
+      const remoteUpdated = getMeta(remoteTask.id) ?? '';
+      const localUpdated = localTask ? getMeta(localTask.id) ?? '' : '';
 
-      // Local record exists and local meta >= server updated_at → keep local
-      if (localTask && localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) {
-        mergedTasks.push(localTask);
-      } else {
-        // Remote is newer, or no local record, or no local meta → apply remote
+      if (!localTask) {
         mergedTasks.push(remoteTask);
+      } else if (remoteUpdated > localUpdated) {
+        mergedTasks.push(remoteTask);
+      } else {
+        mergedTasks.push(localTask);
       }
     }
     for (const localTask of localTasks) {
@@ -368,18 +342,6 @@ async function pullAll(): Promise<void> {
       meta[r.client_id] = r.updated_at;
     }
     saveMeta();
-
-    // Propagate deletions recorded locally while offline / not signed in
-    const listTombstones = deletedListIds.get();
-    for (const id of listTombstones) {
-      await supabase.from('lists').delete().eq('client_id', id).eq('user_id', userId);
-      clearListDeleted(id);
-    }
-    const taskTombstones = deletedTaskIds.get();
-    for (const id of taskTombstones) {
-      await supabase.from('tasks').delete().eq('client_id', id).eq('user_id', userId);
-      clearTaskDeleted(id);
-    }
 
     setSyncStatus('online');
     setSyncReady(true);
@@ -416,7 +378,6 @@ async function flushQueue(): Promise<void> {
         );
       } else if (op.type === 'delete-task') {
         await supabase.from('tasks').delete().eq('client_id', op.id).eq('user_id', userId);
-        clearTaskDeleted(op.id);
       } else if (op.type === 'upsert-list') {
         await supabase.from('lists').upsert(
           { ...listToRow(op.list, userId, op.updatedAt), id: undefined },
@@ -424,7 +385,6 @@ async function flushQueue(): Promise<void> {
         );
       } else if (op.type === 'delete-list') {
         await supabase.from('lists').delete().eq('client_id', op.id).eq('user_id', userId);
-        clearListDeleted(op.id);
       }
     }
     setSyncStatus(isOnline ? 'online' : 'offline');
@@ -458,25 +418,18 @@ async function pushTasks(): Promise<void> {
   const userId = currentUser.get()!.id;
 
   const batch = tasks.get();
-  if (batch.length === 0) return;
-
   pushing = true;
   setSyncStatus('syncing');
 
   try {
-    // Use a single timestamp for the entire batch to avoid clock skew issues
-    // with realtime subscriptions comparing local meta vs server updated_at
-    const batchUpdatedAt = new Date().toISOString();
-    
     for (const task of batch) {
-      meta[task.id] = batchUpdatedAt;
+      const updatedAt = bumpMeta(task.id);
       const { error } = await supabase.from('tasks').upsert(
-        { ...taskToRow(task, userId, batchUpdatedAt), id: undefined },
+        { ...taskToRow(task, userId, updatedAt), id: undefined },
         { onConflict: 'client_id' }
       );
       if (error) throw error;
     }
-    saveMeta();
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
     logSupabaseError('pushTasks failed', err);
@@ -495,23 +448,18 @@ async function pushLists(): Promise<void> {
   const userId = currentUser.get()!.id;
 
   const batch = lists.get();
-  if (batch.length === 0) return;
-
   pushing = true;
   setSyncStatus('syncing');
 
   try {
-    const batchUpdatedAt = new Date().toISOString();
-    
     for (const list of batch) {
-      meta[list.id] = batchUpdatedAt;
+      const updatedAt = bumpMeta(list.id);
       const { error } = await supabase.from('lists').upsert(
-        { ...listToRow(list, userId, batchUpdatedAt), id: undefined },
+        { ...listToRow(list, userId, updatedAt), id: undefined },
         { onConflict: 'client_id' }
       );
       if (error) throw error;
     }
-    saveMeta();
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
     logSupabaseError('pushLists failed', err);
@@ -561,7 +509,6 @@ function setupRealtime(): void {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
       (payload) => {
-        console.log('[sync] realtime task change:', payload.eventType);
         void handleRemoteChange('tasks', payload as unknown as RealtimePayload);
       }
     )
@@ -569,16 +516,10 @@ function setupRealtime(): void {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lists', filter: `user_id=eq.${userId}` },
       (payload) => {
-        console.log('[sync] realtime list change:', payload.eventType);
         void handleRemoteChange('lists', payload as unknown as RealtimePayload);
       }
     )
-    .subscribe((status) => {
-      console.log('[sync] realtime channel status:', status);
-      if (status === 'CHANNEL_ERROR') {
-        setSyncStatus('error');
-      }
-    });
+    .subscribe();
 
   realtimeChannel = channel;
   realtimeChannelUserId = userId;
@@ -588,7 +529,6 @@ async function handleRemoteChange(
   table: 'tasks' | 'lists',
   payload: RealtimePayload
 ): Promise<void> {
-  console.log('[sync] handleRemoteChange:', table, payload.eventType);
   if (!supabase || applyingRemote || !currentUser.get()) return;
 
   if (payload.eventType === 'DELETE') {
@@ -598,10 +538,8 @@ async function handleRemoteChange(
     try {
       if (table === 'tasks') {
         tasks.set(tasks.get().filter((t) => t.id !== oldRow.client_id));
-        clearTaskDeleted(oldRow.client_id);
       } else {
         lists.set(lists.get().filter((l) => l.id !== oldRow.client_id));
-        clearListDeleted(oldRow.client_id);
       }
     } finally {
       applyingRemote = false;
@@ -619,11 +557,8 @@ async function handleRemoteChange(
 
     // If this change came from this same device (we just pushed), skip
     // (our meta is already >= this updated_at)
-    // Use a small epsilon to handle clock skew between client and server
     const localMeta = getMeta(clientId) ?? '';
     if (localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) return;
-    // Also skip if this is a local-only change (no remote user)
-    if (!currentUser.get()) return;
 
     applyingRemote = true;
     try {
@@ -633,7 +568,6 @@ async function handleRemoteChange(
         const current = tasks.get();
         const idx = current.findIndex((t) => t.id === task.id);
         const localUpdated = getMeta(task.id) ?? '';
-        // Apply remote if: no local version, or remote is newer than local meta
         if (!localUpdated || rowUpdatedAt > localUpdated) {
           if (idx >= 0) {
             const next = [...current];
@@ -671,38 +605,9 @@ async function handleRemoteChange(
 // Local store subscriptions (react to local changes)
 // ---------------------------------------------------------------------------
 function setupLocalSubscriptions(): void {
-  // Baseline for deletion tracking (before first subscription callback)
-  lastTaskIds = new Set(tasks.get().map((t) => t.id));
-  lastListIds = new Set(lists.get().map((l) => l.id));
-
   // Subscribe to tasks store changes
   tasks.subscribe(() => {
-    const currentIds = new Set(tasks.get().map((t) => t.id));
-
-    // When applying remote changes (or no user), just update tracking baseline
-    if (applyingRemote || !currentUser.get()) {
-      lastTaskIds = currentIds;
-      return;
-    }
-
-    // Detect local deletions and queue delete ops for the remote
-    const removed = Array.from(lastTaskIds).filter((id) => !currentIds.has(id));
-    lastTaskIds = currentIds;
-    if (removed.length > 0) {
-      // Drop any queued upsert for these ids (they no longer exist locally)
-      pendingQueue = [
-        ...pendingQueue.filter((op) => {
-          if (op.type === 'upsert-task' && removed.includes(op.task.id)) return false;
-          return true;
-        }),
-        ...removed.map((id) => ({ type: 'delete-task' as const, id })),
-      ];
-      persistQueue();
-      // If online, flush the deletes right away (offline: flushed on reconnect)
-      if (isOnline) {
-        void flushQueue();
-      }
-    }
+    if (applyingRemote || !currentUser.get()) return;
 
     if (!isOnline) {
       // Offline: queue the full current state (simplified: queue full batch)
@@ -728,32 +633,7 @@ function setupLocalSubscriptions(): void {
 
   // Subscribe to lists store changes
   lists.subscribe(() => {
-    const currentIds = new Set(lists.get().map((l) => l.id));
-
-    // When applying remote changes (or no user), just update tracking baseline
-    if (applyingRemote || !currentUser.get()) {
-      lastListIds = currentIds;
-      return;
-    }
-
-    // Detect local deletions and queue delete ops for the remote
-    const removed = Array.from(lastListIds).filter((id) => !currentIds.has(id));
-    lastListIds = currentIds;
-    if (removed.length > 0) {
-      // Drop any queued upsert for these ids (they no longer exist locally)
-      pendingQueue = [
-        ...pendingQueue.filter((op) => {
-          if (op.type === 'upsert-list' && removed.includes(op.list.id)) return false;
-          return true;
-        }),
-        ...removed.map((id) => ({ type: 'delete-list' as const, id })),
-      ];
-      persistQueue();
-      // If online, flush the deletes right away (offline: flushed on reconnect)
-      if (isOnline) {
-        void flushQueue();
-      }
-    }
+    if (applyingRemote || !currentUser.get()) return;
 
     if (!isOnline) {
       pendingQueue = [
@@ -782,19 +662,6 @@ let pushDebounceLists: ReturnType<typeof setTimeout> | null = null;
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
-/** Sign out the current user (local data is preserved). */
-export async function signOut(): Promise<void> {
-  if (!supabase) return;
-  try {
-    await supabase.auth.signOut();
-    // The auth state change listener will clear currentUser,
-    // remove the realtime channel, and reset sync status.
-  } catch (err) {
-    console.error('[sync] signOut failed:', err);
-    throw new Error('Failed to sign out');
-  }
-}
-
 export function initSync(): void {
   loadQueue();
   setSyncEnabled(isConfigured);

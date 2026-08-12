@@ -164,7 +164,7 @@
   );
 </script>
 
-<div class="px-4 md:px-6">
+<div class="safe-area-header px-4 md:px-6">
   <!-- Header -->
   <div class="flex items-center justify-between mb-4">
     <h1 class="text-xl font-semibold text-neutral-800 dark:text-neutral-100">Combined</h1>
