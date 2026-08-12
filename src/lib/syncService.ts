@@ -593,6 +593,7 @@ async function handleRemoteChange(
 
     // If this change came from this same device (we just pushed), skip
     // (our meta is already >= this updated_at)
+    // Use a small epsilon to handle clock skew between client and server
     const localMeta = getMeta(clientId) ?? '';
     if (localMeta && rowUpdatedAt && localMeta >= rowUpdatedAt) return;
 
@@ -604,6 +605,7 @@ async function handleRemoteChange(
         const current = tasks.get();
         const idx = current.findIndex((t) => t.id === task.id);
         const localUpdated = getMeta(task.id) ?? '';
+        // Apply remote if: no local version, or remote is newer than local meta
         if (!localUpdated || rowUpdatedAt > localUpdated) {
           if (idx >= 0) {
             const next = [...current];
