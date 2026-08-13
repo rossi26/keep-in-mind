@@ -481,6 +481,34 @@ async function pushTasks(): Promise<void> {
       if (error) throw error;
     }
     saveMeta();
+    
+    // Process any pending operations (like deletions) after pushing tasks
+    if (pendingQueue.length > 0) {
+      const ops = [...pendingQueue];
+      pendingQueue = [];
+      persistQueue();
+      
+      for (const op of ops) {
+        if (op.type === 'upsert-task') {
+          await supabase.from('tasks').upsert(
+            { ...taskToRow(op.task, userId, op.updatedAt), id: undefined },
+            { onConflict: 'client_id' }
+          );
+        } else if (op.type === 'delete-task') {
+          await supabase.from('tasks').delete().eq('client_id', op.id).eq('user_id', userId);
+          clearTaskDeleted(op.id);
+        } else if (op.type === 'upsert-list') {
+          await supabase.from('lists').upsert(
+            { ...listToRow(op.list, userId, op.updatedAt), id: undefined },
+            { onConflict: 'client_id' }
+          );
+        } else if (op.type === 'delete-list') {
+          await supabase.from('lists').delete().eq('client_id', op.id).eq('user_id', userId);
+          clearListDeleted(op.id);
+        }
+      }
+    }
+    
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
     logSupabaseError('pushTasks failed', err);
@@ -516,6 +544,34 @@ async function pushLists(): Promise<void> {
       if (error) throw error;
     }
     saveMeta();
+    
+    // Process any pending operations (like deletions) after pushing lists
+    if (pendingQueue.length > 0) {
+      const ops = [...pendingQueue];
+      pendingQueue = [];
+      persistQueue();
+      
+      for (const op of ops) {
+        if (op.type === 'upsert-task') {
+          await supabase.from('tasks').upsert(
+            { ...taskToRow(op.task, userId, op.updatedAt), id: undefined },
+            { onConflict: 'client_id' }
+          );
+        } else if (op.type === 'delete-task') {
+          await supabase.from('tasks').delete().eq('client_id', op.id).eq('user_id', userId);
+          clearTaskDeleted(op.id);
+        } else if (op.type === 'upsert-list') {
+          await supabase.from('lists').upsert(
+            { ...listToRow(op.list, userId, op.updatedAt), id: undefined },
+            { onConflict: 'client_id' }
+          );
+        } else if (op.type === 'delete-list') {
+          await supabase.from('lists').delete().eq('client_id', op.id).eq('user_id', userId);
+          clearListDeleted(op.id);
+        }
+      }
+    }
+    
     setSyncStatus(isOnline ? 'online' : 'offline');
   } catch (err) {
     logSupabaseError('pushLists failed', err);
