@@ -154,9 +154,6 @@
 
     // Prevent the browser from scrolling horizontally while swiping.
     // Vertical scrolling remains allowed (touch-action: pan-y on the card).
-    if (isSwiping) {
-      event.preventDefault();
-    }
   }
 
   function onTouchEnd() {
