@@ -454,7 +454,11 @@ function logSupabaseError(context: string, err: unknown): void {
 }
 
 async function pushTasks(): Promise<void> {
-  if (!supabase || pushing || applyingRemote || !currentUser.get()) return;
+  console.log('[sync] pushTasks called');
+  if (!supabase || pushing || applyingRemote || !currentUser.get()) {
+    console.log('[sync] pushTasks skipped:', { supabase: !!supabase, pushing, applyingRemote, user: !!currentUser.get() });
+    return;
+  }
   const userId = currentUser.get()!.id;
 
   const batch = tasks.get();
@@ -796,10 +800,12 @@ export async function signOut(): Promise<void> {
 }
 
 export function initSync(): void {
+  console.log('[sync] initSync called, isConfigured:', isConfigured);
   loadQueue();
   setSyncEnabled(isConfigured);
 
   if (!isConfigured || !supabase) {
+    console.log('[sync] initSync skipped: not configured or no supabase client');
     // No Supabase configured — app runs fully local
     setSyncStatus('idle');
     setSyncReady(true);
@@ -814,6 +820,7 @@ export function initSync(): void {
   }
 
   void setupAuth().then(() => {
+    console.log('[sync] setupAuth complete, user:', currentUser.get()?.id);
     // Subscribe to local stores only after auth setup so we don't push
     // while not logged in (sync is no-op when no user anyway)
     setupLocalSubscriptions();

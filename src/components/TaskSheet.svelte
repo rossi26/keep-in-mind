@@ -191,7 +191,7 @@
   <!-- Bottom sheet -->
   <div
     class="fixed bottom-0 inset-x-0 z-50 mx-auto max-w-lg bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl safe-bottom overflow-x-hidden"
-    style={`transform: translateY(${dragOffset}px); transition: ${isDragging ? 'none' : 'transform 0.3s ease-out'};`}
+    style={`transform: translateY(${dragOffset}px); transition: ${isDragging ? 'none' : 'transform 0.3s ease-out'}; width: 100%; max-width: 100%;`}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerEnd}
@@ -199,6 +199,7 @@
     role="dialog"
     aria-modal="true"
   >
+    <div class="overflow-x-hidden">
     <!-- Drag handle -->
     <div class="flex justify-center pt-3 pb-1">
       <div class="w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600"></div>
@@ -448,5 +449,6 @@
         {$taskSheetModeStore === 'edit' ? 'Save Changes' : 'Create Task'}
       </button>
     </div>
+  </div>
   </div>
 {/if}
