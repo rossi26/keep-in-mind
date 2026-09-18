@@ -34,11 +34,12 @@ export const settingsOpen = atom<boolean>(false);
 export const authModalOpen = atom<boolean>(false);
 
 // Global default boomerang days (used as the default when creating a task)
-export const defaultBoomerangDays = persistentAtom<number>('kmm-boomerang-default', 3, {
+// Default is 0 (off) — user must explicitly enable boomerang per-task
+export const defaultBoomerangDays = persistentAtom<number>('kmm-boomerang-default', 0, {
   encode: (v) => String(v),
   decode: (v) => {
     const n = parseInt(v, 10);
-    return Number.isFinite(n) && n >= 0 ? n : 3;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
   },
 });
 

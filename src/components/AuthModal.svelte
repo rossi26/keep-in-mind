@@ -12,16 +12,24 @@
   const syncEnabledStore = store(syncEnabled);
   const syncStatusStore = store(syncStatus);
 
-  let mode = $state<'login' | 'signup'>('login');
+    let mode = $state<'login' | 'signup' | 'forgot'>('login');
   let email = $state('');
   let password = $state('');
   let loading = $state(false);
   let errorMsg = $state('');
   let signingOut = $state(false);
+  let resetEmailSent = $state(false);
 
-  function switchMode(): void {
+    function switchMode(): void {
     mode = mode === 'login' ? 'signup' : 'login';
     errorMsg = '';
+    resetEmailSent = false;
+  }
+
+  function showForgotPassword(): void {
+    mode = 'forgot';
+    errorMsg = '';
+    resetEmailSent = false;
   }
 
   async function handleSubmit(): Promise<void> {
@@ -68,7 +76,7 @@
     }
   }
 
-  async function handleGoogleLogin(): Promise<void> {
+    async function handleGoogleLogin(): Promise<void> {
     if (!supabase) return;
     loading = true;
     errorMsg = '';
@@ -81,6 +89,33 @@
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Google login failed';
       errorMsg = message;
+      loading = false;
+    }
+  }
+
+  async function handlePasswordReset(): Promise<void> {
+    if (!supabase) {
+      addToast('Sync not configured. Add Supabase credentials in .env', 'error');
+      return;
+    }
+    if (!email) {
+      errorMsg = 'Please enter your email address';
+      return;
+    }
+
+    loading = true;
+    errorMsg = '';
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/?reset-password=true`,
+      });
+      if (error) throw error;
+      resetEmailSent = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send reset email';
+      errorMsg = message;
+    } finally {
       loading = false;
     }
   }
@@ -135,6 +170,8 @@
           <h2 class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
             {#if $currentUserStore}
               Account
+            {:else if mode === 'forgot'}
+              Reset password
             {:else}
               {mode === 'login' ? 'Welcome back' : 'Create account'}
             {/if}
@@ -185,6 +222,76 @@
             <Icon name="log-out" size={16} />
             {signingOut ? 'Signing out…' : 'Sign out'}
           </button>
+        {:else if mode === 'forgot'}
+          <!-- ==================== FORGOT PASSWORD SCREEN ==================== -->
+          {#if resetEmailSent}
+            <div class="text-center py-6">
+              <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Icon name="mail" size={32} class="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 class="text-lg font-semibold text-neutral-800 dark:text-neutral-100 mb-2">Check your email</h3>
+              <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+                We've sent a password reset link to <strong class="text-neutral-700 dark:text-neutral-300">{email}</strong>
+              </p>
+              <button
+                type="button"
+                onclick={() => { mode = 'login'; resetEmailSent = false; }}
+                class="text-sm text-primary hover:underline"
+              >
+                Back to sign in
+              </button>
+            </div>
+          {:else}
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+
+            {#if errorMsg}
+              <div class="px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-sm rounded-card border border-red-200 dark:border-red-800/40">
+                {errorMsg}
+              </div>
+            {/if}
+
+            <form onsubmit={(e) => { e.preventDefault(); handlePasswordReset(); }} class="space-y-4">
+              <div>
+                <label for="reset-email" class="block text-sm font-medium text-neutral-700 dark:text-neutral-200 mb-1">
+                  Email
+                </label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  bind:value={email}
+                  required
+                  placeholder="you@example.com"
+                  class="w-full px-4 py-2.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-card text-sm text-neutral-800 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+
+              {#if !supabase}
+                <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-card px-3 py-2">
+                  ⚠️ Supabase is not configured. Add credentials in <code class="font-mono">.env</code> to enable cloud sync.
+                </p>
+              {/if}
+
+              <button
+                type="submit"
+                disabled={loading || !supabase}
+                class="w-full px-4 py-3 bg-primary text-white rounded-card text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {loading ? 'Sending…' : 'Send reset link'}
+              </button>
+            </form>
+
+            <div class="text-center">
+              <button
+                type="button"
+                onclick={() => { mode = 'login'; errorMsg = ''; }}
+                class="text-sm text-primary hover:underline"
+              >
+                Back to sign in
+              </button>
+            </div>
+          {/if}
         {:else}
           <!-- ==================== LOGIN / SIGNUP SCREEN ==================== -->
           {#if errorMsg}
@@ -258,6 +365,19 @@
               {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
             </button>
           </form>
+
+          <!-- Forgot password link (only in login mode) -->
+          {#if mode === 'login'}
+            <div class="text-center">
+              <button
+                type="button"
+                onclick={showForgotPassword}
+                class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary"
+              >
+                Forgot password?
+              </button>
+            </div>
+          {/if}
 
           <div class="text-center">
             <button
